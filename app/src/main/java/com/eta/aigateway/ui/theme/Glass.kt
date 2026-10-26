@@ -38,8 +38,8 @@ val GlassTint = Color(0xFF9EC5FF)
  */
 @Composable
 fun Modifier.glass(
-    level: GlassLevel = GlassLevel.Weak,
     radius: Dp = Dimens.cardRadius,
+    level: GlassLevel = GlassLevel.Weak,
     tint: Color = GlassTint
 ): Modifier {
     val backdrop = LocalBackdrop.current ?: return this.glassStatic(radius, level, tint)
