@@ -58,7 +58,8 @@ class ModelGroupRepository(private val db: AppDatabase) {
                 sources = sources,
                 enabled = st?.enabled ?: false,
                 tags = st?.tags?.split(",")?.filter { it.isNotBlank() } ?: emptyList(),
-                custom = customs.any { it.modelId == mid }
+                custom = customs.any { it.modelId == mid },
+                vendor = ModelClassifier.vendorOf(mid)
             )
         }.sortedWith(
             compareByDescending<ModelGroup> { it.enabled }

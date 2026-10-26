@@ -138,6 +138,10 @@ private fun GroupCard(g: ModelGroup, vm: ModelsViewModel) {
                             Spacer(Modifier.width(6.dp))
                             SourceBadge(g.sources.size)
                         }
+                        g.vendor?.let { v ->
+                            Spacer(Modifier.width(6.dp))
+                            VendorBadge(v)
+                        }
                     }
                     Text(
                         "${g.modelId}${if (g.custom) " · 自定义" else ""}",
@@ -190,6 +194,21 @@ private fun SourceRow(s: ModelSource, vm: ModelsViewModel) {
             checked = s.enabled,
             onCheckedChange = { vm.toggleSource(s.key, it) },
             modifier = Modifier.height(28.dp)
+        )
+    }
+}
+
+@Composable
+private fun VendorBadge(vendor: String) {
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+    ) {
+        Text(
+            vendor,
+            fontSize = 9.sp,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }

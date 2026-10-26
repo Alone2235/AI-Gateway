@@ -29,7 +29,8 @@ data class ModelGroup(
     val sources: List<ModelSource>,
     val enabled: Boolean = false,
     val tags: List<String> = emptyList(),
-    val custom: Boolean = false
+    val custom: Boolean = false,
+    val vendor: String? = null
 ) {
     val enabledSources: List<ModelSource> get() = sources.filter { it.enabled }
     val bestHealth: HealthStatus

@@ -24,6 +24,62 @@ class GatewayEngine(
 
     private data class TryResult(val success: Boolean, val error: String, val code: Int)
 
+    /**
+     * auto 模式：按 AutoSelector 打分排序，依次尝试多个模型组，
+     * 某一组全部来源失败就自动换下一组。
+     */
+    fun autoChat(
+        history: List<Pair<String, String>>,
+        temperature: Double = 0.7,
+        source: String = "api",
+        maxTokens: Int = 0
+    ): Flow<StreamEvent> = flow {
+        val lastUser = history.lastOrNull { it.first == "user" }?.second ?: ""
+        val tags = AutoSelector.inferTaskTags(lastUser)
+        val ranked = AutoSelector.rank(groups, tags)
+
+        if (ranked.isEmpty()) {
+            emit(StreamEvent.Failed("没有可用模型，请先在 App 内启用模型", 0))
+            return@flow
+        }
+
+        val startedAt = System.currentTimeMillis()
+        var lastError = "未知错误"
+        var lastCode = 0
+
+        for ((i, choice) in ranked.withIndex()) {
+            if (System.currentTimeMillis() - startedAt > policy.globalBudgetMs) {
+                emit(StreamEvent.Failed("整体请求超时", 408))
+                return@flow
+            }
+            if (i > 0) {
+                emit(StreamEvent.Switched(
+                    "auto", choice.group.modelId,
+                    "自动切换到 ${choice.group.displayName}（${choice.reason}）"
+                ))
+            }
+
+            val attempts = buildAttempts(choice.group)
+            var groupOk = false
+
+            for ((j, att) in attempts.withIndex()) {
+                if (CooldownTracker.isCooling(att.source.key)) continue
+                if (j > 0) {
+                    emit(StreamEvent.Switched(choice.group.modelId, att.source.modelId,
+                        "换用 ${att.source.providerName}"))
+                }
+                val r = tryOne(att, history, temperature, maxTokens, source, startedAt)
+                if (r.success) { groupOk = true; break }
+                lastError = r.error
+                lastCode = r.code
+            }
+
+            if (groupOk) return@flow
+        }
+
+        emit(StreamEvent.Failed("所有模型均失败：$lastError", lastCode))
+    }
+
     fun chat(
         target: ModelGroup,
         history: List<Pair<String, String>>,
