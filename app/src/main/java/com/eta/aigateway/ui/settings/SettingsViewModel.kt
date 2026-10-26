@@ -24,7 +24,10 @@ data class SettingsUiState(
     val gatewayPort: Int = 8080,
     val gatewayKeys: List<String> = emptyList(),
     val gatewayAllowLan: Boolean = false,
-    val customModels: List<CustomModel> = emptyList()
+    val customModels: List<CustomModel> = emptyList(),
+    val compressEnabled: Boolean = true,
+    val compressModel: String = "",
+    val compressThreshold: Int = 8000
 )
 
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
@@ -53,7 +56,28 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             repo.gatewayAllowLan.collect { v -> _state.update { it.copy(gatewayAllowLan = v) } }
         }
+        viewModelScope.launch {
+            repo.compressEnabled.collect { v -> _state.update { it.copy(compressEnabled = v) } }
+        }
+        viewModelScope.launch {
+            repo.compressModel.collect { v -> _state.update { it.copy(compressModel = v) } }
+        }
+        viewModelScope.launch {
+            repo.compressThreshold.collect { v -> _state.update { it.copy(compressThreshold = v) } }
+        }
         reloadCustom()
+    }
+
+    fun setCompressEnabled(v: Boolean) {
+        viewModelScope.launch { repo.saveCompressEnabled(v) }
+    }
+
+    fun setCompressModel(id: String) {
+        viewModelScope.launch { repo.saveCompressModel(id) }
+    }
+
+    fun setCompressThreshold(v: Int) {
+        viewModelScope.launch { repo.saveCompressThreshold(v) }
     }
 
     private fun reloadCustom() {

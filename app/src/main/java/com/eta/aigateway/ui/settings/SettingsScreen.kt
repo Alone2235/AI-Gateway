@@ -81,6 +81,9 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
                 }
             }
 
+            item { SectionHeader("对话", "长对话的处理方式") }
+            item { CompressSection(vm) }
+
             item { SectionHeader("对外网关", "让其它客户端连这台手机") }
             item { GatewaySettingsSection(vm) }
 

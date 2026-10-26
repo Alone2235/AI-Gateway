@@ -31,6 +31,9 @@ class SettingsRepository(private val context: Context) {
         private val KEY_GW_PORT = intPreferencesKey("gateway_port")
         private val KEY_GW_KEYS = stringPreferencesKey("gateway_keys")
         private val KEY_GW_LAN = booleanPreferencesKey("gateway_lan")
+        private val KEY_COMPRESS_ON = booleanPreferencesKey("compress_on")
+        private val KEY_COMPRESS_MODEL = stringPreferencesKey("compress_model")
+        private val KEY_COMPRESS_THRESHOLD = intPreferencesKey("compress_threshold")
     }
 
     /** 所有 provider（含模板合并） */
@@ -118,6 +121,24 @@ class SettingsRepository(private val context: Context) {
     val gatewayAllowLan: Flow<Boolean> = context.dataStore.data.map { it[KEY_GW_LAN] ?: false }
     suspend fun saveGatewayAllowLan(v: Boolean) {
         context.dataStore.edit { it[KEY_GW_LAN] = v }
+    }
+
+    /** 上下文压缩开关 */
+    val compressEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_COMPRESS_ON] ?: true }
+    suspend fun saveCompressEnabled(v: Boolean) {
+        context.dataStore.edit { it[KEY_COMPRESS_ON] = v }
+    }
+
+    /** 压缩用的摘要模型 */
+    val compressModel: Flow<String> = context.dataStore.data.map { it[KEY_COMPRESS_MODEL] ?: "" }
+    suspend fun saveCompressModel(id: String) {
+        context.dataStore.edit { it[KEY_COMPRESS_MODEL] = id }
+    }
+
+    /** 触发阈值（token 估算） */
+    val compressThreshold: Flow<Int> = context.dataStore.data.map { it[KEY_COMPRESS_THRESHOLD] ?: 8000 }
+    suspend fun saveCompressThreshold(v: Int) {
+        context.dataStore.edit { it[KEY_COMPRESS_THRESHOLD] = v }
     }
 
     val theme: Flow<String> = context.dataStore.data.map { it[KEY_THEME] ?: "dark" }

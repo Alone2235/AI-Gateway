@@ -1,5 +1,6 @@
 package com.eta.aigateway.ui.chat
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,11 +12,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eta.aigateway.data.model.ChatMessage
 import com.eta.aigateway.data.model.ModelGroup
+import com.eta.aigateway.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,33 +39,20 @@ fun ChatScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text("AI Gateway", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                        Text(
-                            state.currentGroup?.displayName ?: "未选择模型",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                title = { TopTitle(state, onPick = { showModelPicker = true }) },
                 actions = {
-                    IconButton(onClick = { showModelPicker = true }) {
-                        Icon(Icons.Default.SwapHoriz, "切换模型")
-                    }
-                    IconButton(onClick = { vm.newSession() }) {
-                        Icon(Icons.Default.AddComment, "新对话")
-                    }
                     IconButton(onClick = onOpenModels) {
-                        Icon(Icons.Default.List, "模型")
+                        Icon(Icons.Default.Tune, "模型", Modifier.size(22.dp))
                     }
                     IconButton(onClick = onOpenDashboard) {
-                        Icon(Icons.Default.Insights, "仪表盘")
+                        Icon(Icons.Default.Insights, "仪表盘", Modifier.size(22.dp))
                     }
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, "设置")
+                        Icon(Icons.Default.Settings, "设置", Modifier.size(22.dp))
                     }
                 }
             )
@@ -77,7 +67,14 @@ fun ChatScreen(
             )
         }
     ) { pad ->
-        ChatBody(state, listState, Modifier.fillMaxSize().padding(pad))
+        Box(Modifier.fillMaxSize().padding(pad)) {
+            if (state.messages.isEmpty() && state.streamingText.isEmpty()) {
+                EmptyState(Modifier.align(Alignment.Center))
+            } else {
+                ChatList(state, listState)
+            }
+            HintBanner(state.statusHint, Modifier.align(Alignment.TopCenter))
+        }
     }
 
     if (showModelPicker) {
@@ -92,57 +89,73 @@ fun ChatScreen(
     state.error?.let { err ->
         AlertDialog(
             onDismissRequest = vm::clearError,
-            title = { Text("请求失败") },
-            text = { Text(err) },
+            title = { Text("请求失败", fontSize = Fonts.title2) },
+            text = { Text(err, fontSize = Fonts.body) },
             confirmButton = { TextButton(onClick = vm::clearError) { Text("知道了") } }
         )
     }
 }
 
 @Composable
-private fun ChatBody(
-    state: ChatUiState,
-    listState: androidx.compose.foundation.lazy.LazyListState,
-    modifier: Modifier = Modifier
-) {
-    Box(modifier) {
-        if (state.messages.isEmpty() && state.streamingText.isEmpty()) {
-            EmptyState(Modifier.align(Alignment.Center))
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(state.messages, key = { it.id }) { msg -> MessageBubble(msg) }
-                if (state.streamingText.isNotEmpty()) {
-                    item {
-                        MessageBubble(
-                            ChatMessage(
-                                id = "streaming",
-                                sessionId = "tmp",
-                                role = "assistant",
-                                content = state.streamingText
-                            )
-                        )
-                    }
-                }
+private fun TopTitle(state: ChatUiState, onPick: () -> Unit) {
+    Column(Modifier.clickable(onClick = onPick)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                state.currentGroup?.displayName ?: "选择模型",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = Fonts.title2
+            )
+            Icon(
+                Icons.Default.ExpandMore, null,
+                Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            state.currentGroup?.let { g ->
+                if (g.sources.size > 1) "${g.sources.size} 个来源可切换" else "单个来源"
+            } ?: "未启用任何模型",
+            fontSize = Fonts.micro,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = TextAlpha.secondary)
+        )
+    }
+}
+
+@Composable
+private fun ChatList(state: ChatUiState, listState: androidx.compose.foundation.lazy.LazyListState) {
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = Dimens.pagePadding, end = Dimens.pagePadding,
+            top = Dimens.gap8, bottom = Dimens.gap16
+        ),
+        verticalArrangement = Arrangement.spacedBy(Dimens.gap12)
+    ) {
+        items(state.messages, key = { it.id }) { MessageBubble(it) }
+        if (state.streamingText.isNotEmpty()) {
+            item {
+                MessageBubble(ChatMessage(
+                    id = "streaming", sessionId = "tmp",
+                    role = "assistant", content = state.streamingText
+                ))
             }
         }
-        state.statusHint?.let { hint ->
-            Surface(
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                Text(
-                    hint,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                )
-            }
-        }
+    }
+}
+
+@Composable
+private fun HintBanner(hint: String?, modifier: Modifier = Modifier) {
+    if (hint == null) return
+    Surface(
+        modifier = modifier.padding(top = Dimens.gap8),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f)
+    ) {
+        Text(
+            hint, fontSize = Fonts.micro,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+        )
     }
 }
 
@@ -150,17 +163,21 @@ private fun ChatBody(
 private fun EmptyState(modifier: Modifier = Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(
-            Icons.Default.Waves,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+            Icons.Default.Waves, null,
+            modifier = Modifier.size(56.dp),
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
         )
-        Spacer(Modifier.height(12.dp))
-        Text("多接口聚合 · 自动降级", fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(Dimens.gap12))
         Text(
-            "点右上角切换模型开始对话",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            "多来源聚合 · 自动切换",
+            fontWeight = FontWeight.Medium,
+            fontSize = Fonts.bodyStrong
+        )
+        Spacer(Modifier.height(Dimens.gap4))
+        Text(
+            "点标题栏选模型，或直接开始对话",
+            fontSize = Fonts.caption,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = TextAlpha.secondary)
         )
     }
 }
@@ -173,29 +190,30 @@ private fun InputBar(
     onSend: () -> Unit,
     onStop: () -> Unit
 ) {
-    Surface(shadowElevation = 8.dp) {
-        Row(
-            Modifier.fillMaxWidth().padding(10.dp),
-            verticalAlignment = Alignment.Bottom
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .glassStatic(0.dp, GlassLevel.Strong)
+            .padding(horizontal = Dimens.pagePadding, vertical = Dimens.gap12),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.weight(1f),
+            placeholder = { Text("说点什么…", fontSize = Fonts.body) },
+            maxLines = 5,
+            shape = RoundedCornerShape(22.dp)
+        )
+        Spacer(Modifier.width(Dimens.gap8))
+        FilledIconButton(
+            onClick = if (streaming) onStop else onSend,
+            modifier = Modifier.size(48.dp)
         ) {
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("说点什么…", fontSize = 14.sp) },
-                maxLines = 5,
-                shape = RoundedCornerShape(20.dp)
+            Icon(
+                if (streaming) Icons.Default.Stop else Icons.Default.ArrowUpward,
+                if (streaming) "停止" else "发送"
             )
-            Spacer(Modifier.width(8.dp))
-            FilledIconButton(
-                onClick = if (streaming) onStop else onSend,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    if (streaming) Icons.Default.Stop else Icons.Default.Send,
-                    contentDescription = if (streaming) "停止" else "发送"
-                )
-            }
         }
     }
 }

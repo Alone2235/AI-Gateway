@@ -7,6 +7,7 @@ import com.eta.aigateway.data.db.AppDatabase
 import com.eta.aigateway.data.model.*
 import com.eta.aigateway.data.repository.ModelGroupRepository
 import com.eta.aigateway.data.repository.SettingsRepository
+import com.eta.aigateway.engine.ContextCompressor
 import com.eta.aigateway.engine.GatewayEngine
 import com.eta.aigateway.engine.RetryPolicy
 import kotlinx.coroutines.Job
@@ -98,9 +99,38 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             }
             db.messageDao().insert(userMsg)
 
-            val history = _state.value.messages.filter { !it.isError }.map { it.role to it.content }
+            val rawHistory = _state.value.messages.filter { !it.isError }.map { it.role to it.content }
             val ps = providers.first()
             val engine = GatewayEngine(ps, _groups.value, RetryPolicy())
+
+            // 上下文压缩
+            val compressOn = repo.compressEnabled.first()
+            val threshold = repo.compressThreshold.first()
+            val summaryModelId = repo.compressModel.first()
+            val summarizer = if (summaryModelId.isNotBlank()) {
+                _groups.value.firstOrNull { it.modelId == summaryModelId && it.enabled }
+            } else {
+                _groups.value.filter { it.enabled }.minByOrNull { g ->
+                    // 优先挑便宜的：名字含 mini/flash/lite 的
+                    val n = g.modelId.lowercase()
+                    when {
+                        n.contains("mini") || n.contains("flash") || n.contains("lite") -> 0
+                        else -> 1
+                    }
+                }
+            }
+
+            val history = ContextCompressor.compress(
+                history = rawHistory,
+                summarizer = summarizer,
+                config = ContextCompressor.Config(enabled = compressOn, triggerTokens = threshold)
+            ) { model, msgs ->
+                val sb = StringBuilder()
+                GatewayEngine(ps, _groups.value, RetryPolicy())
+                    .chat(model, msgs, 0.3, source = "compress")
+                    .collect { ev -> if (ev is StreamEvent.Chunk) sb.append(ev.text) }
+                sb.toString()
+            }
 
             val sb = StringBuilder()
             var finalModel = group.modelId
