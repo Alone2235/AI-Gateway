@@ -2,6 +2,8 @@ package com.eta.aigateway.data.repository
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
@@ -26,6 +28,9 @@ class SettingsRepository(private val context: Context) {
         private val KEY_SELECTED_MODEL = stringPreferencesKey("selected_model")
         private val KEY_MODEL_CACHE = stringPreferencesKey("model_cache")
         private val KEY_THEME = stringPreferencesKey("theme")
+        private val KEY_GW_PORT = intPreferencesKey("gateway_port")
+        private val KEY_GW_KEYS = stringPreferencesKey("gateway_keys")
+        private val KEY_GW_LAN = booleanPreferencesKey("gateway_lan")
     }
 
     /** 所有 provider（含模板合并） */
@@ -74,6 +79,26 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun saveModelCache(map: Map<String, List<String>>) {
         context.dataStore.edit { it[KEY_MODEL_CACHE] = gson.toJson(map) }
+    }
+
+    /** 网关端口，默认 8080 */
+    val gatewayPort: Flow<Int> = context.dataStore.data.map { it[KEY_GW_PORT] ?: 8080 }
+    suspend fun saveGatewayPort(port: Int) {
+        context.dataStore.edit { it[KEY_GW_PORT] = port }
+    }
+
+    /** 网关访问密钥（外部客户端用） */
+    val gatewayAccessKeys: Flow<List<String>> = context.dataStore.data.map { p ->
+        (p[KEY_GW_KEYS] ?: "").lines().map { it.trim() }.filter { it.isNotBlank() }
+    }
+    suspend fun saveGatewayAccessKeys(keys: List<String>) {
+        context.dataStore.edit { it[KEY_GW_KEYS] = keys.joinToString("\n") }
+    }
+
+    /** 是否允许局域网访问 */
+    val gatewayAllowLan: Flow<Boolean> = context.dataStore.data.map { it[KEY_GW_LAN] ?: false }
+    suspend fun saveGatewayAllowLan(v: Boolean) {
+        context.dataStore.edit { it[KEY_GW_LAN] = v }
     }
 
     val theme: Flow<String> = context.dataStore.data.map { it[KEY_THEME] ?: "dark" }

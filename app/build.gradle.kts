@@ -50,6 +50,9 @@ android {
 }
 
 dependencies {
+    // Core
+    implementation("androidx.core:core-ktx:1.15.0")
+
     // Compose
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.ui:ui")
@@ -86,4 +89,7 @@ dependencies {
 
     // Gson
     implementation("com.google.code.gson:gson:2.11.0")
+
+    // 内嵌 HTTP 服务（网关对外暴露）
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 }

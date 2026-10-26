@@ -23,7 +23,8 @@ class GatewayEngine(
     fun chat(
         selectedModel: ModelEntry,
         history: List<Pair<String, String>>,
-        temperature: Double = 0.7
+        temperature: Double = 0.7,
+        source: String = "app"
     ): Flow<StreamEvent> = flow {
         val pref = preferences[selectedModel.id] ?: ModelPreference(selectedModel.id)
         val policy = pref.policy
@@ -52,6 +53,8 @@ class GatewayEngine(
             var gotAnyChunk = false
             var failureCode = 0
             var failureMsg = ""
+            val startAt = System.currentTimeMillis()
+            var outChars = 0
 
             try {
                 OpenAIClient.streamChat(
@@ -62,7 +65,11 @@ class GatewayEngine(
                     temperature = temperature
                 ).collect { ev ->
                     when (ev) {
-                        is StreamEvent.Chunk -> { gotAnyChunk = true; emit(ev) }
+                        is StreamEvent.Chunk -> {
+                            gotAnyChunk = true
+                            outChars += ev.text.length
+                            emit(ev)
+                        }
                         is StreamEvent.Done -> emit(StreamEvent.Done(c.modelId, c.providerName))
                         is StreamEvent.Failed -> { failureCode = ev.code; failureMsg = ev.reason }
                         else -> {}
@@ -73,10 +80,40 @@ class GatewayEngine(
                 failureMsg = e.message ?: "异常"
             }
 
-            if (gotAnyChunk) return@flow
+            if (gotAnyChunk) {
+                UsageRecorder.record(
+                    modelId = c.modelId,
+                    modelRequested = selectedModel.id,
+                    providerId = c.providerId,
+                    providerName = c.providerName,
+                    source = source,
+                    success = true,
+                    httpCode = 200,
+                    errorMsg = "",
+                    latencyMs = System.currentTimeMillis() - startAt,
+                    promptTokens = estimateTokens(history),
+                    completionTokens = (outChars / 3).coerceAtLeast(1),
+                    fallbackDepth = attempted - 1
+                )
+                return@flow
+            }
 
             lastError = failureMsg
             lastCode = failureCode
+            UsageRecorder.record(
+                modelId = c.modelId,
+                modelRequested = selectedModel.id,
+                providerId = c.providerId,
+                providerName = c.providerName,
+                source = source,
+                success = false,
+                httpCode = failureCode,
+                errorMsg = failureMsg,
+                latencyMs = System.currentTimeMillis() - startAt,
+                promptTokens = estimateTokens(history),
+                completionTokens = 0,
+                fallbackDepth = attempted - 1
+            )
             CooldownTracker.markFailed(
                 "${c.providerId}:${c.keyLabel}",
                 CooldownTracker.cooldownFor(failureCode),
@@ -145,6 +182,12 @@ class GatewayEngine(
         }
 
         return list
+    }
+
+    /** 粗估 token：中文约 1.5 字/token，英文约 4 字符/token，这里取折中 3 */
+    private fun estimateTokens(history: List<Pair<String, String>>): Int {
+        val chars = history.sumOf { it.second.length }
+        return (chars / 3).coerceAtLeast(1)
     }
 
     private fun nearScore(a: String, b: String): Int {

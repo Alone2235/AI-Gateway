@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -70,6 +71,10 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
                 )
             }
             item {
+                Spacer(Modifier.height(8.dp))
+                GatewaySettingsSection(vm)
+            }
+            item {
                 Text(
                     "降级策略",
                     fontWeight = FontWeight.SemiBold,
@@ -99,7 +104,7 @@ private fun ProviderCard(
     onTest: () -> Unit,
     onFetch: () -> Unit
 ) {
-    var expanded by remember { mutableStateOf(p.apiKeys.isNotEmpty()) }
+    var expanded by remember(p.id) { mutableStateOf(false) }
     var keysText by remember(p.id) { mutableStateOf(p.apiKeys.joinToString("\n")) }
     var baseUrl by remember(p.id) { mutableStateOf(p.baseUrl) }
 
@@ -131,9 +136,11 @@ private fun ProviderCard(
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = baseUrl,
-                    onValueChange = { baseUrl = it; onBaseUrlChange(it) },
+                    onValueChange = { baseUrl = it },
                     label = { Text("Base URL", fontSize = 12.sp) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().onFocusChanged {
+                        if (!it.isFocused && baseUrl != p.baseUrl) onBaseUrlChange(baseUrl)
+                    },
                     singleLine = true
                 )
                 Spacer(Modifier.height(8.dp))

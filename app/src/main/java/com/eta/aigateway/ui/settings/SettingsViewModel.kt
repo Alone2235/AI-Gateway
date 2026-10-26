@@ -16,7 +16,10 @@ data class SettingsUiState(
     val modelCache: Map<String, List<String>> = emptyMap(),
     val prefs: Map<String, ModelPreference> = emptyMap(),
     val loading: String? = null,
-    val toast: String? = null
+    val toast: String? = null,
+    val gatewayPort: Int = 8080,
+    val gatewayKeys: List<String> = emptyList(),
+    val gatewayAllowLan: Boolean = false
 )
 
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
@@ -35,6 +38,27 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             repo.modelPreferences.collect { p -> _state.update { it.copy(prefs = p) } }
         }
+        viewModelScope.launch {
+            repo.gatewayPort.collect { v -> _state.update { it.copy(gatewayPort = v) } }
+        }
+        viewModelScope.launch {
+            repo.gatewayAccessKeys.collect { v -> _state.update { it.copy(gatewayKeys = v) } }
+        }
+        viewModelScope.launch {
+            repo.gatewayAllowLan.collect { v -> _state.update { it.copy(gatewayAllowLan = v) } }
+        }
+    }
+
+    fun setGatewayPort(port: Int) {
+        viewModelScope.launch { repo.saveGatewayPort(port) }
+    }
+
+    fun setGatewayKeys(keys: List<String>) {
+        viewModelScope.launch { repo.saveGatewayAccessKeys(keys) }
+    }
+
+    fun setGatewayAllowLan(v: Boolean) {
+        viewModelScope.launch { repo.saveGatewayAllowLan(v) }
     }
 
     fun setKeys(providerId: String, keysText: String) {

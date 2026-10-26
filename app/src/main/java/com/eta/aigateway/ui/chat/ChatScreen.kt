@@ -22,7 +22,8 @@ import com.eta.aigateway.data.model.ModelEntry
 fun ChatScreen(
     vm: ChatViewModel,
     availableModels: List<ModelEntry>,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenDashboard: () -> Unit
 ) {
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
@@ -52,6 +53,9 @@ fun ChatScreen(
                     }
                     IconButton(onClick = { vm.newSession() }) {
                         Icon(Icons.Default.AddComment, "新对话")
+                    }
+                    IconButton(onClick = onOpenDashboard) {
+                        Icon(Icons.Default.Insights, "仪表盘")
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, "设置")

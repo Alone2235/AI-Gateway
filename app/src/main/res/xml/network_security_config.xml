@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+      默认放开明文：本 App 的核心场景就是连用户自建的 http 端点
+      （本地网关 127.0.0.1、局域网 New API / Ollama / LM Studio 等）。
+      仅 HTTPS 无法满足，因此对全部域名允许明文。
+      风险控制：API Key 只发往用户自己配置的地址，不做自动跳转。
+    -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

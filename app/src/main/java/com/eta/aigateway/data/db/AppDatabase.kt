@@ -2,17 +2,21 @@ package com.eta.aigateway.data.db
 
 import android.content.Context
 import androidx.room.*
+import com.eta.aigateway.data.model.BalanceSnapshot
 import com.eta.aigateway.data.model.ChatMessage
 import com.eta.aigateway.data.model.ChatSession
+import com.eta.aigateway.data.model.UsageRecord
 
 @Database(
-    entities = [ChatMessage::class, ChatSession::class],
-    version = 1,
+    entities = [ChatMessage::class, ChatSession::class, UsageRecord::class, BalanceSnapshot::class],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun sessionDao(): SessionDao
+    abstract fun usageDao(): UsageDao
+    abstract fun balanceDao(): BalanceDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
