@@ -79,6 +79,18 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
                 CustomModelSection(vm, state.providers, state.customModels)
             }
             item {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val ver = try {
+                    ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
+                } catch (e: Exception) { "?" }
+                Text(
+                    "AI Gateway v$ver",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+            item {
                 Text(
                     "降级策略",
                     fontWeight = FontWeight.SemiBold,

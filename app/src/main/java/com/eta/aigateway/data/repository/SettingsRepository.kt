@@ -40,16 +40,35 @@ class SettingsRepository(private val context: Context) {
             gson.fromJson(savedJson, object : TypeToken<List<ProviderConfig>>() {}.type)
         } catch (_: Exception) { emptyList() }
 
-        // 以模板为骨架，把保存的 key 合并进去
+        // 以模板为骨架；用户层只保存差异，避免模板值反向覆盖用户修改
         ProviderTemplates.all.map { tpl ->
             val s = saved.firstOrNull { it.id == tpl.id }
-            if (s != null) tpl.copy(apiKeys = s.apiKeys, enabled = s.enabled, baseUrl = s.baseUrl.ifBlank { tpl.baseUrl })
-            else tpl
+            if (s == null) tpl
+            else tpl.copy(
+                apiKeys = s.apiKeys,
+                enabled = s.enabled,
+                // 空串表示用户没改过，用模板默认
+                baseUrl = s.baseUrl.ifBlank { tpl.baseUrl }
+            )
         } + saved.filter { s -> ProviderTemplates.all.none { it.id == s.id } }
     }
 
+    /**
+     * 只持久化用户真正改动过的字段。
+     * 未改动的 baseUrl 存空串，读取时回落到模板默认值，
+     * 这样以后模板升级地址也能自动生效，且不会覆盖用户修改。
+     */
     suspend fun saveProviders(list: List<ProviderConfig>) {
-        context.dataStore.edit { it[KEY_PROVIDERS] = gson.toJson(list) }
+        val slim = list.map { p ->
+            val tpl = ProviderTemplates.all.firstOrNull { it.id == p.id }
+            p.copy(
+                name = tpl?.name ?: p.name,
+                builtin = tpl?.builtin ?: p.builtin,
+                protocol = tpl?.protocol ?: p.protocol,
+                baseUrl = if (tpl != null && p.baseUrl == tpl.baseUrl) "" else p.baseUrl
+            )
+        }
+        context.dataStore.edit { it[KEY_PROVIDERS] = gson.toJson(slim) }
     }
 
     val modelPreferences: Flow<Map<String, ModelPreference>> = context.dataStore.data.map { p ->
