@@ -64,10 +64,25 @@ object ProviderTemplates {
             builtin = true
         ),
         ProviderConfig(
+            id = "anthropic",
+            name = "Anthropic 官方",
+            baseUrl = "https://api.anthropic.com/v1",
+            builtin = true,
+            protocol = "anthropic"
+        ),
+        ProviderConfig(
             id = "custom",
-            name = "自定义",
+            name = "自定义 (OpenAI)",
             baseUrl = "",
-            builtin = false
+            builtin = false,
+            protocol = "openai"
+        ),
+        ProviderConfig(
+            id = "custom_anthropic",
+            name = "自定义 (Anthropic)",
+            baseUrl = "",
+            builtin = false,
+            protocol = "anthropic"
         )
     )
 

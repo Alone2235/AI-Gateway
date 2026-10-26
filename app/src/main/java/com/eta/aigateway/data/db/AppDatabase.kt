@@ -5,11 +5,13 @@ import androidx.room.*
 import com.eta.aigateway.data.model.BalanceSnapshot
 import com.eta.aigateway.data.model.ChatMessage
 import com.eta.aigateway.data.model.ChatSession
+import com.eta.aigateway.data.model.CustomModel
 import com.eta.aigateway.data.model.UsageRecord
 
 @Database(
-    entities = [ChatMessage::class, ChatSession::class, UsageRecord::class, BalanceSnapshot::class],
-    version = 2,
+    entities = [ChatMessage::class, ChatSession::class, UsageRecord::class,
+                BalanceSnapshot::class, CustomModel::class],
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -17,6 +19,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun usageDao(): UsageDao
     abstract fun balanceDao(): BalanceDao
+    abstract fun customModelDao(): CustomModelDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

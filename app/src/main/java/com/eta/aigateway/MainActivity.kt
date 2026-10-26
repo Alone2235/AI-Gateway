@@ -59,8 +59,8 @@ fun AppRoot() {
     var screen by remember { mutableStateOf(Screen.CHAT) }
     val st by settingsVm.state.collectAsState()
 
-    LaunchedEffect(st.providers, st.modelCache) {
-        chatVm.refreshModels(st.modelCache, st.providers)
+    LaunchedEffect(st.providers, st.modelCache, st.customModels) {
+        chatVm.refreshModels(st.modelCache, st.providers, st.customModels)
     }
 
     when (screen) {

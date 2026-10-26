@@ -1,7 +1,8 @@
 package com.eta.aigateway.engine
 
 import com.eta.aigateway.data.model.*
-import com.eta.aigateway.data.provider.OpenAIClient
+import com.eta.aigateway.data.provider.ChatProtocol
+import com.eta.aigateway.data.provider.ProtocolType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -17,7 +18,8 @@ class GatewayEngine(
         val providerName: String,
         val baseUrl: String,
         val apiKey: String,
-        val keyLabel: String
+        val keyLabel: String,
+        val protocol: String = "openai"
     )
 
     fun chat(
@@ -57,12 +59,15 @@ class GatewayEngine(
             var outChars = 0
 
             try {
-                OpenAIClient.streamChat(
+                val proto = ChatProtocol.of(ProtocolType.from(c.protocol))
+                proto.stream(
                     baseUrl = c.baseUrl,
                     apiKey = c.apiKey,
                     model = c.modelId,
-                    messages = history,
-                    temperature = temperature
+                    systemPrompt = null,
+                    history = history,
+                    temperature = temperature,
+                    maxTokens = 0
                 ).collect { ev ->
                     when (ev) {
                         is StreamEvent.Chunk -> {
@@ -147,7 +152,8 @@ class GatewayEngine(
                         providerName = p.name,
                         baseUrl = p.baseUrl,
                         apiKey = key,
-                        keyLabel = "#${idx + 1}"
+                        keyLabel = "#${idx + 1}",
+                        protocol = p.protocol
                     ))
                 }
             }

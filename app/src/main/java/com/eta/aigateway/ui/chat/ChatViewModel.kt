@@ -37,13 +37,36 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private var streamJob: Job? = null
     private var allModels: List<ModelEntry> = emptyList()
 
-    fun refreshModels(cache: Map<String, List<String>>, providerList: List<ProviderConfig>) {
-        allModels = providerList.filter { it.enabled && it.baseUrl.isNotBlank() }
+    fun refreshModels(
+        cache: Map<String, List<String>>,
+        providerList: List<ProviderConfig>,
+        customModels: List<CustomModel> = emptyList()
+    ) {
+        val pulled = providerList.filter { it.enabled && it.baseUrl.isNotBlank() }
             .flatMap { p ->
                 (cache[p.id] ?: emptyList()).map { mid ->
-                    ModelEntry(mid, mid.substringAfterLast('/'), p.id, p.name)
+                    ModelEntry(
+                        id = mid,
+                        displayName = mid,
+                        providerId = p.id,
+                        providerName = p.name,
+                        protocol = p.protocol
+                    )
                 }
             }
+        val custom = customModels.mapNotNull { cm ->
+            val p = providerList.firstOrNull { it.id == cm.providerId } ?: return@mapNotNull null
+            ModelEntry(
+                id = cm.modelId,
+                displayName = cm.displayName,
+                providerId = cm.providerId,
+                providerName = p.name,
+                protocol = cm.protocol,
+                custom = true
+            )
+        }
+        // 自定义优先显示，并去重
+        allModels = (custom + pulled).distinctBy { "${it.providerId}|${it.id}" }
         _state.value.currentModel?.let { cur ->
             val updated = allModels.firstOrNull { it.id == cur.id && it.providerId == cur.providerId }
             if (updated != null) _state.update { it.copy(currentModel = updated) }

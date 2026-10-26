@@ -75,6 +75,10 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
                 GatewaySettingsSection(vm)
             }
             item {
+                Spacer(Modifier.height(8.dp))
+                CustomModelSection(vm, state.providers, state.customModels)
+            }
+            item {
                 Text(
                     "降级策略",
                     fontWeight = FontWeight.SemiBold,

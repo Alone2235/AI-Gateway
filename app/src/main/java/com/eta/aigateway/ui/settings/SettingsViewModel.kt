@@ -4,9 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.eta.aigateway.data.model.FallbackPolicy
+import com.eta.aigateway.data.db.AppDatabase
+import com.eta.aigateway.data.model.CustomModel
 import com.eta.aigateway.data.model.ModelPreference
 import com.eta.aigateway.data.model.ProviderConfig
-import com.eta.aigateway.data.provider.OpenAIClient
+import com.eta.aigateway.data.provider.ChatProtocol
+import com.eta.aigateway.data.provider.ProtocolType
 import com.eta.aigateway.data.repository.SettingsRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -19,11 +22,13 @@ data class SettingsUiState(
     val toast: String? = null,
     val gatewayPort: Int = 8080,
     val gatewayKeys: List<String> = emptyList(),
-    val gatewayAllowLan: Boolean = false
+    val gatewayAllowLan: Boolean = false,
+    val customModels: List<CustomModel> = emptyList()
 )
 
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = SettingsRepository(app)
+    private val db = AppDatabase.getInstance(app)
 
     private val _state = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
@@ -46,6 +51,27 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             repo.gatewayAllowLan.collect { v -> _state.update { it.copy(gatewayAllowLan = v) } }
+        }
+        reloadCustom()
+    }
+
+    private fun reloadCustom() {
+        viewModelScope.launch {
+            _state.update { it.copy(customModels = db.customModelDao().all()) }
+        }
+    }
+
+    fun addCustomModel(m: CustomModel) {
+        viewModelScope.launch {
+            db.customModelDao().upsert(m)
+            reloadCustom()
+        }
+    }
+
+    fun deleteCustomModel(id: String) {
+        viewModelScope.launch {
+            db.customModelDao().delete(id)
+            reloadCustom()
         }
     }
 
@@ -96,7 +122,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.update { it.copy(loading = providerId) }
         viewModelScope.launch {
-            val (_, msg) = OpenAIClient.ping(p.baseUrl, key)
+            val proto = ChatProtocol.of(ProtocolType.from(p.protocol))
+            val (_, msg) = proto.ping(p.baseUrl, key)
             _state.update { it.copy(loading = null, toast = "${p.name}: $msg") }
         }
     }
@@ -110,7 +137,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.update { it.copy(loading = providerId) }
         viewModelScope.launch {
-            val models = OpenAIClient.listModels(p.baseUrl, key)
+            val proto = ChatProtocol.of(ProtocolType.from(p.protocol))
+            val models = proto.listModels(p.baseUrl, key)
             if (models.isEmpty()) {
                 _state.update { it.copy(loading = null, toast = "${p.name}: 拉取失败或没有模型") }
             } else {

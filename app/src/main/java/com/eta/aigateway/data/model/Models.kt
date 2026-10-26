@@ -35,16 +35,31 @@ data class ProviderConfig(
     val baseUrl: String,           // https://openrouter.ai/api/v1
     val apiKeys: List<String> = emptyList(),
     val enabled: Boolean = true,
-    val builtin: Boolean = false    // 内置模板
+    val builtin: Boolean = false,   // 内置模板
+    val protocol: String = "openai" // openai / anthropic
 )
 
 /** 模型条目 */
 data class ModelEntry(
-    val id: String,                // 模型 id，如 "anthropic/claude-3.5-sonnet"
-    val displayName: String,
+    val id: String,                // 发给 API 的真实模型 id
+    val displayName: String,       // 列表中显示的名字（可自定义）
     val providerId: String,
     val providerName: String,
-    val contextLength: Int = 0
+    val contextLength: Int = 0,
+    val protocol: String = "openai",
+    val custom: Boolean = false    // 是否手动添加
+)
+
+/** 用户手动添加的模型 */
+@Entity(tableName = "custom_models")
+data class CustomModel(
+    @PrimaryKey val id: String,          // 本地唯一 id
+    val modelId: String,                 // 发给 API 的真实 id
+    val displayName: String,             // 用户取的名字
+    val providerId: String,
+    val protocol: String = "openai",
+    val contextLength: Int = 0,
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 /** 降级策略 */
