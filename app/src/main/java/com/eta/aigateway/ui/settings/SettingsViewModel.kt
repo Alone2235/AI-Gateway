@@ -13,6 +13,7 @@ import com.eta.aigateway.data.provider.ProtocolType
 import com.eta.aigateway.data.repository.SettingsRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class SettingsUiState(
     val providers: List<ProviderConfig> = emptyList(),
@@ -72,6 +73,35 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             db.customModelDao().delete(id)
             reloadCustom()
+        }
+    }
+
+    /** 新建一个自定义 provider */
+    fun addCustomProvider(name: String, baseUrl: String, protocol: String) {
+        viewModelScope.launch {
+            val id = "custom_" + UUID.randomUUID().toString().take(8)
+            val cur = _state.value.providers
+            val np = ProviderConfig(
+                id = id,
+                name = name.ifBlank { "自定义接口" },
+                baseUrl = baseUrl.trim(),
+                enabled = true,
+                builtin = false,
+                protocol = protocol
+            )
+            repo.saveProviders(cur + np)
+        }
+    }
+
+    /** 删除自定义 provider */
+    fun deleteCustomProvider(id: String) {
+        viewModelScope.launch {
+            val cur = _state.value.providers.filter { it.id != id }
+            repo.saveProviders(cur)
+            // 同时清理它的模型缓存
+            val cache = _state.value.modelCache.toMutableMap()
+            cache.remove(id)
+            repo.saveModelCache(cache)
         }
     }
 

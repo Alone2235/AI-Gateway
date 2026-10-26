@@ -13,8 +13,8 @@ android {
         applicationId = "com.eta.aigateway"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.06"
+        versionCode = 7
+        versionName = "0.07"
     }
 
     signingConfigs {
@@ -89,6 +89,9 @@ dependencies {
 
     // Gson
     implementation("com.google.code.gson:gson:2.11.0")
+
+    // 注解（LiquidGlass 内嵌源码需要）
+    implementation("org.jetbrains:annotations:26.1.0")
 
     // 内嵌 HTTP 服务（网关对外暴露）
     implementation("org.nanohttpd:nanohttpd:2.3.1")

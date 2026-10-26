@@ -1,34 +1,43 @@
 package com.eta.aigateway.ui.theme
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-// 深海鲸蓝配色
-private val DeepSea = Color(0xFF0B1120)
-private val DeepSeaSurface = Color(0xFF141B2D)
-private val WhaleBlue = Color(0xFF4A9EFF)
-private val WhaleCyan = Color(0xFF33D6C0)
-private val Foam = Color(0xFFE8F1FF)
+// 深海配色
+private val AbyssTop = Color(0xFF060B16)
+private val AbyssMid = Color(0xFF0C1526)
+private val AbyssBottom = Color(0xFF101C33)
+private val WhaleBlue = Color(0xFF5AA9FF)
+private val WhaleCyan = Color(0xFF3DDCC4)
+private val Foam = Color(0xFFEAF2FF)
 
 private val DarkColors = darkColorScheme(
     primary = WhaleBlue,
-    onPrimary = Color(0xFF00172E),
-    primaryContainer = Color(0xFF17385E),
+    onPrimary = Color(0xFF00182E),
+    primaryContainer = Color(0xFF1B3D63),
     onPrimaryContainer = Foam,
     secondary = WhaleCyan,
     onSecondary = Color(0xFF00201B),
-    background = DeepSea,
+    secondaryContainer = Color(0xFF17453E),
+    onSecondaryContainer = Color(0xFFB8F5EA),
+    background = AbyssMid,
     onBackground = Foam,
-    surface = DeepSeaSurface,
+    surface = Color(0xFF131F35),
     onSurface = Foam,
-    surfaceVariant = Color(0xFF1D2740),
-    onSurfaceVariant = Color(0xFFA8B8D8),
-    error = Color(0xFFFF6B6B),
-    outline = Color(0xFF2E3D5C)
+    surfaceVariant = Color(0xFF1A2740),
+    onSurfaceVariant = Color(0xFFA9BBD8),
+    error = Color(0xFFFF7A7A),
+    onError = Color(0xFF3A0000),
+    outline = Color(0xFF2C3B57)
 )
 
 private val LightColors = lightColorScheme(
@@ -36,21 +45,32 @@ private val LightColors = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = Color(0xFFD6E6FF),
     onPrimaryContainer = Color(0xFF001A3D),
-    secondary = Color(0xFF009688),
-    background = Color(0xFFF7FAFF),
-    onBackground = Color(0xFF10182A),
-    surface = Color.White,
-    onSurface = Color(0xFF10182A),
-    surfaceVariant = Color(0xFFE6EDF8),
-    onSurfaceVariant = Color(0xFF4A5772),
-    error = Color(0xFFD32029),
-    outline = Color(0xFFC2CFE4)
+    secondary = Color(0xFF00897B),
+    background = Color(0xFFF2F7FF),
+    onBackground = Color(0xFF0E1626),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF0E1626),
+    surfaceVariant = Color(0xFFE4ECF9),
+    onSurfaceVariant = Color(0xFF46546F),
+    error = Color(0xFFC62B2B),
+    outline = Color(0xFFBCC9DE)
 )
 
 @Composable
-fun AIGatewayTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        content = content
-    )
+fun AIGatewayTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
+    val scheme = if (darkTheme) DarkColors else LightColors
+    MaterialTheme(colorScheme = scheme) {
+        // 深海渐变底
+        val bg = if (darkTheme) {
+            Brush.verticalGradient(listOf(AbyssTop, AbyssMid, AbyssBottom))
+        } else {
+            Brush.verticalGradient(listOf(Color(0xFFEAF3FF), Color(0xFFF6FAFF)))
+        }
+        Box(Modifier.fillMaxSize().background(bg)) {
+            content()
+        }
+    }
 }

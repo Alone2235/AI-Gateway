@@ -70,20 +70,7 @@ object ProviderTemplates {
             builtin = true,
             protocol = "anthropic"
         ),
-        ProviderConfig(
-            id = "custom",
-            name = "自定义 (OpenAI)",
-            baseUrl = "",
-            builtin = false,
-            protocol = "openai"
-        ),
-        ProviderConfig(
-            id = "custom_anthropic",
-            name = "自定义 (Anthropic)",
-            baseUrl = "",
-            builtin = false,
-            protocol = "anthropic"
-        )
+        // 自定义 provider 由用户运行时新建，不预置固定条目
     )
 
     fun byId(id: String): ProviderConfig? = all.firstOrNull { it.id == id }
