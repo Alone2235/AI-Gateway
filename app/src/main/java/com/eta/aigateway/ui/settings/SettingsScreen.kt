@@ -59,12 +59,16 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
                 ProviderCard(
                     p = p,
                     modelCount = state.modelCache[p.id]?.size ?: 0,
+                    models = state.modelCache[p.id] ?: emptyList(),
+                    enabledModels = state.enabledModels,
                     loading = state.loading == p.id,
                     onKeysChange = { vm.setKeys(p.id, it) },
                     onBaseUrlChange = { vm.setBaseUrl(p.id, it) },
                     onToggle = { vm.toggleEnabled(p.id, it) },
                     onTest = { vm.test(p.id) },
                     onFetch = { vm.fetchModels(p.id) },
+                    onToggleModel = { mid, en -> vm.toggleModelEnabled(mid, en) },
+                    onEnableVendors = { vm.enableVendorsFor(p.id) },
                     onDelete = if (!p.builtin) ({ vm.deleteCustomProvider(p.id) }) else null
                 )
             }

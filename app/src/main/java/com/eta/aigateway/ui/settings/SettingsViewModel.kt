@@ -27,7 +27,8 @@ data class SettingsUiState(
     val customModels: List<CustomModel> = emptyList(),
     val compressEnabled: Boolean = true,
     val compressModel: String = "",
-    val compressThreshold: Int = 8000
+    val compressThreshold: Int = 8000,
+    val enabledModels: Set<String> = emptySet()
 )
 
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
@@ -66,6 +67,10 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             repo.compressThreshold.collect { v -> _state.update { it.copy(compressThreshold = v) } }
         }
         reloadCustom()
+        viewModelScope.launch {
+            val set = db.modelStateDao().allGroups().filter { it.enabled }.map { it.modelId }.toSet()
+            _state.update { it.copy(enabledModels = set) }
+        }
     }
 
     fun setCompressEnabled(v: Boolean) {
@@ -126,6 +131,48 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             val cache = _state.value.modelCache.toMutableMap()
             cache.remove(id)
             repo.saveModelCache(cache)
+        }
+    }
+
+    /** 该 provider 下已启用的模型集合（读 ModelState） */
+    val enabledModelIds: Flow<Set<String>> = kotlinx.coroutines.flow.flow {
+        emit(db.modelStateDao().allGroups().filter { it.enabled }.map { it.modelId }.toSet())
+    }
+
+    fun loadEnabledModels(onResult: (Set<String>) -> Unit) {
+        viewModelScope.launch {
+            onResult(db.modelStateDao().allGroups().filter { it.enabled }.map { it.modelId }.toSet())
+        }
+    }
+
+    fun toggleModelEnabled(modelId: String, enabled: Boolean) {
+        viewModelScope.launch {
+            val cur = db.modelStateDao().allGroups().firstOrNull { it.modelId == modelId }
+            db.modelStateDao().upsert(
+                (cur ?: com.eta.aigateway.data.model.ModelState(modelId)).copy(enabled = enabled)
+            )
+            val set = db.modelStateDao().allGroups().filter { it.enabled }.map { it.modelId }.toSet()
+            _state.update { it.copy(enabledModels = set) }
+        }
+    }
+
+    fun enableVendorsFor(providerId: String) {
+        viewModelScope.launch {
+            val models = _state.value.modelCache[providerId] ?: return@launch
+            val known = models.filter { com.eta.aigateway.data.model.ModelClassifier.isKnownVendor(it) }
+            known.forEach { mid ->
+                val cur = db.modelStateDao().allGroups().firstOrNull { it.modelId == mid }
+                db.modelStateDao().upsert(
+                    (cur ?: com.eta.aigateway.data.model.ModelState(mid)).copy(enabled = true)
+                )
+            }
+            val set = db.modelStateDao().allGroups().filter { it.enabled }.map { it.modelId }.toSet()
+            _state.update {
+                it.copy(
+                    enabledModels = set,
+                    toast = "已启用 ${known.size} 个大厂模型"
+                )
+            }
         }
     }
 

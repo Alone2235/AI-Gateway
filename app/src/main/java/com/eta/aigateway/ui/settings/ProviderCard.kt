@@ -26,12 +26,16 @@ import com.eta.aigateway.ui.theme.*
 fun ProviderCard(
     p: ProviderConfig,
     modelCount: Int,
+    models: List<String>,
+    enabledModels: Set<String>,
     loading: Boolean,
     onKeysChange: (String) -> Unit,
     onBaseUrlChange: (String) -> Unit,
     onToggle: (Boolean) -> Unit,
     onTest: () -> Unit,
     onFetch: () -> Unit,
+    onToggleModel: (String, Boolean) -> Unit,
+    onEnableVendors: () -> Unit,
     onDelete: (() -> Unit)?
 ) {
     var expanded by remember(p.id) { mutableStateOf(false) }
@@ -62,6 +66,16 @@ fun ProviderCard(
                 onTest = onTest, onFetch = onFetch,
                 onDelete = onDelete?.let { { confirmDelete = true } }
             )
+            if (models.isNotEmpty()) {
+                Spacer(Modifier.height(Dimens.gap12))
+                ProviderModelsInline(
+                    providerId = p.id,
+                    models = models,
+                    enabledModels = enabledModels,
+                    onToggle = onToggleModel,
+                    onEnableVendors = onEnableVendors
+                )
+            }
         }
     }
 
