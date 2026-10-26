@@ -13,6 +13,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+internal object OpenAIProtocolHelper {
+    fun normalize(raw: String): String = OpenAIClient.normalizeUrl(raw)
+}
+
 object AnthropicProtocol : ChatProtocol {
 
     private const val VERSION = "2023-06-01"
@@ -28,7 +32,7 @@ object AnthropicProtocol : ChatProtocol {
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
     private fun endpoint(baseUrl: String): String {
-        val b = baseUrl.trimEnd('/')
+        val b = OpenAIProtocolHelper.normalize(baseUrl)
         return if (b.endsWith("/messages")) b else "$b/messages"
     }
 
@@ -150,7 +154,7 @@ object AnthropicProtocol : ChatProtocol {
     }
 
     override suspend fun listModels(baseUrl: String, apiKey: String): List<String> {
-        val b = baseUrl.trimEnd('/').removeSuffix("/messages").trimEnd('/')
+        val b = OpenAIProtocolHelper.normalize(baseUrl).removeSuffix("/messages")
         val req = Request.Builder()
             .url("$b/models?limit=100")
             .addHeader("x-api-key", apiKey)
@@ -169,7 +173,7 @@ object AnthropicProtocol : ChatProtocol {
     }
 
     override suspend fun ping(baseUrl: String, apiKey: String): Pair<Boolean, String> {
-        val b = baseUrl.trimEnd('/').removeSuffix("/messages").trimEnd('/')
+        val b = OpenAIProtocolHelper.normalize(baseUrl).removeSuffix("/messages")
         val req = Request.Builder()
             .url("$b/models?limit=1")
             .addHeader("x-api-key", apiKey)

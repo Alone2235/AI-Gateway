@@ -16,6 +16,20 @@ import java.util.concurrent.TimeUnit
 
 object OpenAIClient {
     private val gson = Gson()
+
+    /** 容错修复常见的手输错误：缺协议头、多空格、以 / 结尾 */
+    fun normalizeUrl(raw: String): String {
+        var u = raw.trim().replace(" ", "")
+        if (u.isEmpty()) return u
+        // 缺 h / 缺 http 的情况
+        when {
+            u.startsWith("//") -> u = "https:$u"
+            u.startsWith("ttps://") -> u = "h$u"
+            u.startsWith("ttp://") -> u = "h$u"
+            !u.startsWith("http://") && !u.startsWith("https://") -> u = "https://$u"
+        }
+        return u.trimEnd('/')
+    }
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(180, TimeUnit.SECONDS)
@@ -41,7 +55,7 @@ object OpenAIClient {
     }
 
     private fun buildRequest(baseUrl: String, apiKey: String, body: String): Request {
-        val url = baseUrl.trimEnd('/') + "/chat/completions"
+        val url = normalizeUrl(baseUrl) + "/chat/completions"
         return Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $apiKey")
@@ -135,7 +149,7 @@ object OpenAIClient {
     }
 
     suspend fun listModels(baseUrl: String, apiKey: String): List<String> {
-        val url = baseUrl.trimEnd('/') + "/models"
+        val url = normalizeUrl(baseUrl) + "/models"
         val req = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $apiKey")
@@ -153,7 +167,12 @@ object OpenAIClient {
     }
 
     suspend fun ping(baseUrl: String, apiKey: String): Pair<Boolean, String> {
-        val url = baseUrl.trimEnd('/') + "/models"
+        val normalized = normalizeUrl(baseUrl)
+        if (normalized.isBlank()) return false to "Base URL 为空"
+        if (!normalized.startsWith("http")) {
+            return false to "Base URL 不合法：$normalized"
+        }
+        val url = "$normalized/models"
         val req = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $apiKey")
@@ -161,11 +180,25 @@ object OpenAIClient {
             .build()
         return try {
             client.newCall(req).execute().use { resp ->
-                if (resp.isSuccessful) true to "连接成功"
-                else false to reasonText(resp.code, null)
+                when {
+                    resp.isSuccessful -> true to "连接成功"
+                    // 401/403 说明网络和地址都对，只是 key 或权限问题
+                    resp.code == 401 || resp.code == 403 ->
+                        false to "地址可达，但 Key 被拒绝 (${resp.code})"
+                    404 -> false to "地址可达，但路径不对 (404)：检查 Base URL 是否少了 /v1"
+                    else -> false to reasonText(resp.code, null)
+                }
             }
+        } catch (e: javax.net.ssl.SSLException) {
+            false to "SSL 握手失败：${e.message}（可能是 http 写成了 https，或证书异常）"
+        } catch (e: java.net.UnknownHostException) {
+            false to "域名解析失败：${e.message}（检查拼写与网络）"
+        } catch (e: java.net.ConnectException) {
+            false to "连接被拒绝：${e.message}"
+        } catch (e: java.net.SocketTimeoutException) {
+            false to "连接超时：服务器无响应"
         } catch (e: Exception) {
-            false to (e.message ?: "连接失败")
+            false to "${e.javaClass.simpleName}: ${e.message}"
         }
     }
 }
