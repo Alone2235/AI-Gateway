@@ -64,7 +64,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectTier(t: VirtualTier) {
-        _state.update { it.copy(currentTier = t) }
+        // 选档位时必须清掉具体模型，否则会继续用旧模型
+        _state.update { it.copy(currentTier = t, currentGroup = null) }
     }
 
     fun updateInput(t: String) = _state.update { it.copy(input = t) }

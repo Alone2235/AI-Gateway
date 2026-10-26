@@ -74,38 +74,45 @@ fun AppRoot() {
         if (screen == Screen.CHAT) chatVm.refreshGroups()
     }
 
-    // 导出层：背景 + 内容都进离屏画布，供玻璃折射
+    // 背景进导出层 → 玻璃折射它；内容在导出层外，玻璃元素自己画在内容里
     Box(Modifier.fillMaxSize()) {
-        // 背景画在导出层内
         Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
-            DeepSeaBackground {
-                Box(Modifier.fillMaxSize()) { }
-            }
+            DeepSeaBackground { Box(Modifier.fillMaxSize()) {} }
         }
-        // 内容层叠在背景之上，玻璃从这里引用 backdrop
-        Box(Modifier.fillMaxSize()) {
-            CompositionLocalProvider(LocalBackdrop provides backdrop) {
-                when (screen) {
-                    Screen.CHAT -> {
-                        val groups by chatVm.groups.collectAsState()
-                        ChatScreen(
-                            vm = chatVm,
-                            groups = groups,
-                            onOpenSettings = { screen = Screen.SETTINGS },
-                            onOpenDashboard = { screen = Screen.DASHBOARD },
-                            onOpenModels = { screen = Screen.SETTINGS }
-                        )
-                    }
-                    Screen.SETTINGS -> SettingsScreen(
-                        settingsVm,
-                        onBack = { screen = Screen.CHAT },
-                        onOpenAbout = { screen = Screen.ABOUT }
-                    )
-                    Screen.DASHBOARD -> DashboardScreen(dashVm) { screen = Screen.CHAT }
-                    Screen.MODELS -> ModelsScreen(modelsVm) { screen = Screen.CHAT }
-                    Screen.ABOUT -> com.eta.aigateway.ui.about.AboutScreen { screen = Screen.SETTINGS }
-                }
-            }
+        CompositionLocalProvider(LocalBackdrop provides backdrop) {
+            AppContent(chatVm, settingsVm, dashVm, modelsVm, screen) { screen = it }
         }
+    }
+}
+
+
+@Composable
+private fun AppContent(
+    chatVm: ChatViewModel,
+    settingsVm: SettingsViewModel,
+    dashVm: DashboardViewModel,
+    modelsVm: ModelsViewModel,
+    screen: Screen,
+    onNavigate: (Screen) -> Unit
+) {
+    when (screen) {
+        Screen.CHAT -> {
+            val groups by chatVm.groups.collectAsState()
+            ChatScreen(
+                vm = chatVm,
+                groups = groups,
+                onOpenSettings = { onNavigate(Screen.SETTINGS) },
+                onOpenDashboard = { onNavigate(Screen.DASHBOARD) },
+                onOpenModels = { onNavigate(Screen.SETTINGS) }
+            )
+        }
+        Screen.SETTINGS -> SettingsScreen(
+            settingsVm,
+            onBack = { onNavigate(Screen.CHAT) },
+            onOpenAbout = { onNavigate(Screen.ABOUT) }
+        )
+        Screen.DASHBOARD -> DashboardScreen(dashVm) { onNavigate(Screen.CHAT) }
+        Screen.MODELS -> ModelsScreen(modelsVm) { onNavigate(Screen.CHAT) }
+        Screen.ABOUT -> com.eta.aigateway.ui.about.AboutScreen { onNavigate(Screen.SETTINGS) }
     }
 }
