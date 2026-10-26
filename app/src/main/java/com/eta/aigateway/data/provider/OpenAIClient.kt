@@ -8,6 +8,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -148,29 +149,34 @@ object OpenAIClient {
         return if (body.isNullOrBlank()) base else "$base: ${body.take(160)}"
     }
 
-    suspend fun listModels(baseUrl: String, apiKey: String): List<String> {
+    suspend fun listModels(baseUrl: String, apiKey: String): List<String> = withContext(Dispatchers.IO) {
         val url = normalizeUrl(baseUrl) + "/models"
         val req = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $apiKey")
             .get()
             .build()
-        return try {
+        var result: List<String> = emptyList()
+        try {
             client.newCall(req).execute().use { resp ->
-                val raw = resp.body?.string() ?: return emptyList()
-                if (!resp.isSuccessful) return emptyList()
-                val json = gson.fromJson(raw, JsonObject::class.java)
-                val data = json.getAsJsonArray("data") ?: return emptyList()
-                data.mapNotNull { it.asJsonObject.get("id")?.asString }.sorted()
+                val raw = resp.body?.string()
+                if (resp.isSuccessful && raw != null) {
+                    val json = gson.fromJson(raw, JsonObject::class.java)
+                    val data = json.getAsJsonArray("data")
+                    if (data != null) {
+                        result = data.mapNotNull { it.asJsonObject.get("id")?.asString }.sorted()
+                    }
+                }
             }
-        } catch (_: Exception) { emptyList() }
+        } catch (_: Exception) { }
+        result
     }
 
-    suspend fun ping(baseUrl: String, apiKey: String): Pair<Boolean, String> {
+    suspend fun ping(baseUrl: String, apiKey: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         val normalized = normalizeUrl(baseUrl)
-        if (normalized.isBlank()) return false to "Base URL 为空"
+        if (normalized.isBlank()) return@withContext (false to "Base URL 为空")
         if (!normalized.startsWith("http")) {
-            return false to "Base URL 不合法：$normalized"
+            return@withContext (false to "Base URL 不合法：$normalized")
         }
         val url = "$normalized/models"
         val req = Request.Builder()
@@ -178,7 +184,7 @@ object OpenAIClient {
             .addHeader("Authorization", "Bearer $apiKey")
             .get()
             .build()
-        return try {
+        try {
             client.newCall(req).execute().use { resp ->
                 when {
                     resp.isSuccessful -> true to "连接成功"

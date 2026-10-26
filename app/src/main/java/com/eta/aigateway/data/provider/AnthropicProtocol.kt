@@ -7,6 +7,7 @@ import com.eta.aigateway.data.model.StreamEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -153,7 +154,7 @@ object AnthropicProtocol : ChatProtocol {
         }
     }
 
-    override suspend fun listModels(baseUrl: String, apiKey: String): List<String> {
+    override suspend fun listModels(baseUrl: String, apiKey: String): List<String> = withContext(Dispatchers.IO) {
         val b = OpenAIProtocolHelper.normalize(baseUrl).removeSuffix("/messages")
         val req = Request.Builder()
             .url("$b/models?limit=100")
@@ -161,18 +162,23 @@ object AnthropicProtocol : ChatProtocol {
             .addHeader("anthropic-version", VERSION)
             .get()
             .build()
-        return try {
+        try {
+            var out: List<String> = emptyList()
             client.newCall(req).execute().use { r ->
-                val raw = r.body?.string() ?: return emptyList()
-                if (!r.isSuccessful) return emptyList()
-                val json = gson.fromJson(raw, JsonObject::class.java)
-                val arr = json.getAsJsonArray("data") ?: return emptyList()
-                arr.mapNotNull { it.asJsonObject.get("id")?.asString }.sorted()
+                val raw = r.body?.string()
+                if (r.isSuccessful && raw != null) {
+                    val json = gson.fromJson(raw, JsonObject::class.java)
+                    val arr = json.getAsJsonArray("data")
+                    if (arr != null) {
+                        out = arr.mapNotNull { it.asJsonObject.get("id")?.asString }.sorted()
+                    }
+                }
             }
+            out
         } catch (_: Exception) { emptyList() }
     }
 
-    override suspend fun ping(baseUrl: String, apiKey: String): Pair<Boolean, String> {
+    override suspend fun ping(baseUrl: String, apiKey: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         val b = OpenAIProtocolHelper.normalize(baseUrl).removeSuffix("/messages")
         val req = Request.Builder()
             .url("$b/models?limit=1")
@@ -180,7 +186,7 @@ object AnthropicProtocol : ChatProtocol {
             .addHeader("anthropic-version", VERSION)
             .get()
             .build()
-        return try {
+        try {
             client.newCall(req).execute().use { r ->
                 if (r.isSuccessful) true to "连接成功"
                 else false to reasonText(r.code, null)

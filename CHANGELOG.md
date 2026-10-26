@@ -3,6 +3,16 @@
 版本号规则：`主版本.两位小数`，如 `0.01`、`0.02`…`0.99`、`1.00`。
 versionCode 为整数递增（0.01 → 1，0.02 → 2）。
 
+## [0.04]
+
+### 修复
+- **NetworkOnMainThreadException**：测试连接 / 拉取模型在 `suspend` 函数里
+  直接调用同步 `execute()`，实际跑在主线程。现统一用 `withContext(Dispatchers.IO)`
+  包裹，OpenAI 与 Anthropic 两侧同步修复
+
+### 变更
+- 版本号改为两位小数格式：0.04
+
 ## [0.03]
 
 ### 修复

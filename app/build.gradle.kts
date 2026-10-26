@@ -13,8 +13,8 @@ android {
         applicationId = "com.eta.aigateway"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.03"
+        versionCode = 4
+        versionName = "0.04"
     }
 
     signingConfigs {
