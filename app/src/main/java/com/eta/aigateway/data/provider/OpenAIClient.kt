@@ -185,7 +185,8 @@ object OpenAIClient {
                     // 401/403 说明网络和地址都对，只是 key 或权限问题
                     resp.code == 401 || resp.code == 403 ->
                         false to "地址可达，但 Key 被拒绝 (${resp.code})"
-                    404 -> false to "地址可达，但路径不对 (404)：检查 Base URL 是否少了 /v1"
+                    resp.code == 404 ->
+                        false to "地址可达，但路径不对 (404)：检查 Base URL 是否少了 /v1"
                     else -> false to reasonText(resp.code, null)
                 }
             }
