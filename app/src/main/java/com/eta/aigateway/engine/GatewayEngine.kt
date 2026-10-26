@@ -68,6 +68,7 @@ class GatewayEngine(
 
             for ((j, att) in attempts.withIndex()) {
                 if (CooldownTracker.isCooling(att.source.key)) continue
+            if (SourceHealth.shouldSkip(att.source.key)) continue
                 if (j > 0) {
                     emit(StreamEvent.Switched(choice.group.modelId, att.source.modelId,
                         "换用 ${att.source.providerName}"))
@@ -108,6 +109,7 @@ class GatewayEngine(
                 return@flow
             }
             if (CooldownTracker.isCooling(att.source.key)) continue
+            if (SourceHealth.shouldSkip(att.source.key)) continue
             if (index > 0) {
                 emit(StreamEvent.Switched(target.modelId, att.source.modelId,
                     "切换到 ${att.source.providerName}"))
@@ -188,6 +190,7 @@ class GatewayEngine(
                 else System.currentTimeMillis() - modelStarted
                 HealthTracker.record(att.source.key, true, latency)
                 CooldownTracker.markSuccess(att.source.key)
+                SourceHealth.onSuccess(att.source.key)
                 StreamQuality.record(
                     att.source.key,
                     firstTokenMs = if (firstChunkAt > 0) firstChunkAt - modelStarted else 0,
@@ -219,6 +222,10 @@ class GatewayEngine(
             if (attempt < policy.maxAttempts) delay(policy.backoffFor(attempt))
         }
 
+        // 5xx 交给 SourceHealth 判定是瞬时还是长期
+        if (lastCode in listOf(500, 502, 503, 504, 529)) {
+            SourceHealth.onServerError(att.source.key, lastCode, lastErr)
+        }
         CooldownTracker.markSoftFailure(att.source.key, lastErr.ifBlank { "重试耗尽" })
         return TryResult(false, lastErr.ifBlank { "重试 ${policy.maxAttempts} 次仍失败" }, lastCode)
     }

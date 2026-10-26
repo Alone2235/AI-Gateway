@@ -34,6 +34,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_COMPRESS_ON = booleanPreferencesKey("compress_on")
         private val KEY_COMPRESS_MODEL = stringPreferencesKey("compress_model")
         private val KEY_COMPRESS_THRESHOLD = intPreferencesKey("compress_threshold")
+        private val KEY_BLOCK_5XX = booleanPreferencesKey("block_5xx")
     }
 
     /** 所有 provider（含模板合并） */
@@ -139,6 +140,12 @@ class SettingsRepository(private val context: Context) {
     val compressThreshold: Flow<Int> = context.dataStore.data.map { it[KEY_COMPRESS_THRESHOLD] ?: 8000 }
     suspend fun saveCompressThreshold(v: Int) {
         context.dataStore.edit { it[KEY_COMPRESS_THRESHOLD] = v }
+    }
+
+    /** 是否把 5xx 来源视为不可用并跳过 */
+    val block5xx: Flow<Boolean> = context.dataStore.data.map { it[KEY_BLOCK_5XX] ?: true }
+    suspend fun saveBlock5xx(v: Boolean) {
+        context.dataStore.edit { it[KEY_BLOCK_5XX] = v }
     }
 
     val theme: Flow<String> = context.dataStore.data.map { it[KEY_THEME] ?: "dark" }

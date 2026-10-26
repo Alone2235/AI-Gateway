@@ -35,6 +35,21 @@ fun CompressSection(vm: SettingsViewModel) {
             Switch(checked = st.compressEnabled, onCheckedChange = { vm.setCompressEnabled(it) })
         }
 
+        Spacer(Modifier.height(Dimens.gap8))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        Spacer(Modifier.height(Dimens.gap8))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("屏蔽 5xx 来源", fontWeight = FontWeight.Medium, fontSize = Fonts.bodyStrong)
+                Text(
+                    "返回 5xx 的接口暂停使用一段时间，避免反复撞墙",
+                    fontSize = Fonts.micro,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = TextAlpha.secondary)
+                )
+            }
+            Switch(checked = st.block5xx, onCheckedChange = { vm.setBlock5xx(it) })
+        }
+
         if (st.compressEnabled) {
             Spacer(Modifier.height(Dimens.gap12))
             OutlinedTextField(

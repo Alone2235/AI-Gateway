@@ -14,6 +14,7 @@ object AutoRouter {
     fun order(group: ModelGroup): List<ModelSource> {
         return group.enabledSources
             .filter { !CooldownTracker.isCooling(it.key) }
+            .filter { !SourceHealth.shouldSkip(it.key) }
             .sortedWith(
                 compareBy<ModelSource> { healthRank(it) }
                     // 伪流式来源靠后

@@ -28,7 +28,8 @@ data class SettingsUiState(
     val compressEnabled: Boolean = true,
     val compressModel: String = "",
     val compressThreshold: Int = 8000,
-    val enabledModels: Set<String> = emptySet()
+    val enabledModels: Set<String> = emptySet(),
+    val block5xx: Boolean = true
 )
 
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
@@ -66,6 +67,12 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             repo.compressThreshold.collect { v -> _state.update { it.copy(compressThreshold = v) } }
         }
+        viewModelScope.launch {
+            repo.block5xx.collect { v ->
+                com.eta.aigateway.engine.SourceHealth.enabled = v
+                _state.update { it.copy(block5xx = v) }
+            }
+        }
         reloadCustom()
         viewModelScope.launch {
             val set = db.modelStateDao().allGroups().filter { it.enabled }.map { it.modelId }.toSet()
@@ -94,14 +101,26 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun addCustomModel(m: CustomModel) {
         viewModelScope.launch {
             db.customModelDao().upsert(m)
-            reloadCustom()
+            viewModelScope.launch {
+            repo.block5xx.collect { v ->
+                com.eta.aigateway.engine.SourceHealth.enabled = v
+                _state.update { it.copy(block5xx = v) }
+            }
+        }
+        reloadCustom()
         }
     }
 
     fun deleteCustomModel(id: String) {
         viewModelScope.launch {
             db.customModelDao().delete(id)
-            reloadCustom()
+            viewModelScope.launch {
+            repo.block5xx.collect { v ->
+                com.eta.aigateway.engine.SourceHealth.enabled = v
+                _state.update { it.copy(block5xx = v) }
+            }
+        }
+        reloadCustom()
         }
     }
 
@@ -174,6 +193,10 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
         }
+    }
+
+    fun setBlock5xx(v: Boolean) {
+        viewModelScope.launch { repo.saveBlock5xx(v) }
     }
 
     fun setGatewayPort(port: Int) {
