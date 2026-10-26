@@ -4,7 +4,7 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.eta.aigateway.engine.GatewayEngine
-import com.eta.aigateway.data.model.ModelEntry
+import com.eta.aigateway.data.model.ModelGroup
 import com.eta.aigateway.data.model.ModelPreference
 import com.eta.aigateway.data.model.ProviderConfig
 import com.eta.aigateway.data.model.StreamEvent
@@ -26,7 +26,7 @@ class GatewayServer(
     data class GatewayState(
         val accessKeys: List<String>,
         val providers: List<ProviderConfig>,
-        val models: List<ModelEntry>,
+        val groups: List<ModelGroup>,
         val prefs: Map<String, ModelPreference>,
         val enabled: Boolean,
         val allowLan: Boolean
@@ -76,12 +76,16 @@ class GatewayServer(
     }
 
     private fun handleModels(st: GatewayState): Response {
-        val data = st.models.map { m ->
-            mapOf(
-                "id" to m.id,
+        val enabled = st.groups.filter { it.enabled && it.enabledSources.isNotEmpty() }
+        val data = mutableListOf<Map<String, Any>>()
+        // auto 虚拟模型：由网关自动选择
+        data.add(mapOf("id" to "auto", "object" to "model", "owned_by" to "gateway"))
+        enabled.forEach { g ->
+            data.add(mapOf(
+                "id" to g.modelId,
                 "object" to "model",
-                "owned_by" to m.providerName
-            )
+                "owned_by" to g.sources.joinToString(",") { it.providerName }
+            ))
         }
         return json(200, mapOf("object" to "list", "data" to data))
     }

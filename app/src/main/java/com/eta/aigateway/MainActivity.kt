@@ -17,6 +17,8 @@ import com.eta.aigateway.ui.chat.ChatScreen
 import com.eta.aigateway.ui.chat.ChatViewModel
 import com.eta.aigateway.ui.dashboard.DashboardScreen
 import com.eta.aigateway.ui.dashboard.DashboardViewModel
+import com.eta.aigateway.ui.models.ModelsScreen
+import com.eta.aigateway.ui.models.ModelsViewModel
 import com.eta.aigateway.ui.settings.SettingsScreen
 import com.eta.aigateway.ui.settings.SettingsViewModel
 import com.eta.aigateway.ui.theme.AIGatewayTheme
@@ -49,31 +51,33 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { CHAT, SETTINGS, DASHBOARD }
+private enum class Screen { CHAT, SETTINGS, DASHBOARD, MODELS }
 
 @Composable
 fun AppRoot() {
     val chatVm: ChatViewModel = viewModel()
     val settingsVm: SettingsViewModel = viewModel()
     val dashVm: DashboardViewModel = viewModel()
+    val modelsVm: ModelsViewModel = viewModel()
     var screen by remember { mutableStateOf(Screen.CHAT) }
-    val st by settingsVm.state.collectAsState()
 
-    LaunchedEffect(st.providers, st.modelCache, st.customModels, screen) {
-        chatVm.refreshModels(st.modelCache, st.providers, st.customModels)
+    LaunchedEffect(screen) {
+        if (screen == Screen.CHAT) chatVm.refreshGroups()
     }
 
     when (screen) {
         Screen.CHAT -> {
-            val models by chatVm.allModels.collectAsState()
+            val groups by chatVm.groups.collectAsState()
             ChatScreen(
                 vm = chatVm,
-                availableModels = models,
+                groups = groups,
                 onOpenSettings = { screen = Screen.SETTINGS },
-                onOpenDashboard = { screen = Screen.DASHBOARD }
+                onOpenDashboard = { screen = Screen.DASHBOARD },
+                onOpenModels = { screen = Screen.MODELS }
             )
         }
         Screen.SETTINGS -> SettingsScreen(settingsVm) { screen = Screen.CHAT }
         Screen.DASHBOARD -> DashboardScreen(dashVm) { screen = Screen.CHAT }
+        Screen.MODELS -> ModelsScreen(modelsVm) { screen = Screen.CHAT }
     }
 }

@@ -6,12 +6,15 @@ import com.eta.aigateway.data.model.BalanceSnapshot
 import com.eta.aigateway.data.model.ChatMessage
 import com.eta.aigateway.data.model.ChatSession
 import com.eta.aigateway.data.model.CustomModel
+import com.eta.aigateway.data.model.ModelState
+import com.eta.aigateway.data.model.SourceState
 import com.eta.aigateway.data.model.UsageRecord
 
 @Database(
     entities = [ChatMessage::class, ChatSession::class, UsageRecord::class,
-                BalanceSnapshot::class, CustomModel::class],
-    version = 3,
+                BalanceSnapshot::class, CustomModel::class,
+                ModelState::class, SourceState::class],
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -20,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun usageDao(): UsageDao
     abstract fun balanceDao(): BalanceDao
     abstract fun customModelDao(): CustomModelDao
+    abstract fun modelStateDao(): ModelStateDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

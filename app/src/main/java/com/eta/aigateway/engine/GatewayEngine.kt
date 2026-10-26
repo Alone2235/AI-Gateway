@@ -3,207 +3,187 @@ package com.eta.aigateway.engine
 import com.eta.aigateway.data.model.*
 import com.eta.aigateway.data.provider.ChatProtocol
 import com.eta.aigateway.data.provider.ProtocolType
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 
 class GatewayEngine(
     private val providers: List<ProviderConfig>,
-    private val preferences: Map<String, ModelPreference> = emptyMap(),
-    private val availableModels: List<ModelEntry> = emptyList()
+    private val groups: List<ModelGroup>,
+    private val policy: RetryPolicy = RetryPolicy()
 ) {
 
-    private data class Candidate(
-        val modelId: String,
-        val providerId: String,
-        val providerName: String,
+    private data class Attempt(
+        val group: ModelGroup,
+        val source: ModelSource,
         val baseUrl: String,
         val apiKey: String,
-        val keyLabel: String,
-        val protocol: String = "openai"
+        val keyIndex: Int
     )
 
+    private data class TryResult(val success: Boolean, val error: String, val code: Int)
+
     fun chat(
-        selectedModel: ModelEntry,
+        target: ModelGroup,
         history: List<Pair<String, String>>,
         temperature: Double = 0.7,
-        source: String = "app"
+        source: String = "app",
+        maxTokens: Int = 0
     ): Flow<StreamEvent> = flow {
-        val pref = preferences[selectedModel.id] ?: ModelPreference(selectedModel.id)
-        val policy = pref.policy
-        val candidates = buildCandidates(selectedModel, pref, policy)
+        val startedAt = System.currentTimeMillis()
+        val attempts = buildAttempts(target)
 
-        if (candidates.isEmpty()) {
-            emit(StreamEvent.Failed("没有可用的 provider / key，请先在设置里配置", 0))
+        if (attempts.isEmpty()) {
+            emit(StreamEvent.Failed("没有可用的模型来源，请检查配置与启用状态", 0))
             return@flow
         }
 
         var lastError = "未知错误"
         var lastCode = 0
-        var attempted = 0
 
-        for (c in candidates) {
-            attempted++
-            if (CooldownTracker.isCooling("${c.providerId}:${c.keyLabel}")) continue
-
-            if (attempted > 1) {
-                emit(StreamEvent.Switched(
-                    selectedModel.id, c.modelId,
-                    "上一个接口不可用，已切到 ${c.providerName} / ${c.modelId}"
-                ))
+        for ((index, att) in attempts.withIndex()) {
+            if (System.currentTimeMillis() - startedAt > policy.globalBudgetMs) {
+                emit(StreamEvent.Failed("整体请求超时（${policy.globalBudgetMs / 1000}s）", 408))
+                return@flow
             }
+            if (CooldownTracker.isCooling(att.source.key)) continue
+            if (index > 0) {
+                emit(StreamEvent.Switched(target.modelId, att.source.modelId,
+                    "切换到 ${att.source.providerName}"))
+            }
+            val result = tryOne(att, history, temperature, maxTokens, source, startedAt)
+            if (result.success) return@flow
+            lastError = result.error
+            lastCode = result.code
+        }
 
-            var gotAnyChunk = false
-            var failureCode = 0
-            var failureMsg = ""
-            val startAt = System.currentTimeMillis()
-            var outChars = 0
+        emit(StreamEvent.Failed("所有来源均失败：$lastError", lastCode))
+    }
+
+    private suspend fun FlowCollector<StreamEvent>.tryOne(
+        att: Attempt,
+        history: List<Pair<String, String>>,
+        temperature: Double,
+        maxTokens: Int,
+        source: String,
+        startedAt: Long
+    ): TryResult {
+        val proto = ChatProtocol.of(ProtocolType.from(att.source.protocol))
+        var attempt = 0
+        var lastErr = ""
+        var lastCode = 0
+        val sb = StringBuilder()
+        val modelStarted = System.currentTimeMillis()
+
+        while (attempt < policy.maxAttempts) {
+            attempt++
+            if (System.currentTimeMillis() - modelStarted > policy.perModelBudgetMs) break
+
+            var gotContent = false
+            var firstChunkAt = 0L
+            lastErr = ""
 
             try {
-                val proto = ChatProtocol.of(ProtocolType.from(c.protocol))
                 proto.stream(
-                    baseUrl = c.baseUrl,
-                    apiKey = c.apiKey,
-                    model = c.modelId,
+                    baseUrl = att.baseUrl,
+                    apiKey = att.apiKey,
+                    model = att.source.modelId,
                     systemPrompt = null,
                     history = history,
                     temperature = temperature,
-                    maxTokens = 0
+                    maxTokens = maxTokens
                 ).collect { ev ->
                     when (ev) {
                         is StreamEvent.Chunk -> {
-                            gotAnyChunk = true
-                            outChars += ev.text.length
+                            if (!gotContent) {
+                                gotContent = true
+                                firstChunkAt = System.currentTimeMillis()
+                            }
+                            sb.append(ev.text)
                             emit(ev)
                         }
-                        is StreamEvent.Done -> emit(StreamEvent.Done(c.modelId, c.providerName))
-                        is StreamEvent.Failed -> { failureCode = ev.code; failureMsg = ev.reason }
+                        is StreamEvent.Failed -> {
+                            lastCode = ev.code
+                            lastErr = ev.reason
+                        }
                         else -> {}
                     }
                 }
             } catch (e: Exception) {
-                failureCode = 0
-                failureMsg = e.message ?: "异常"
+                lastCode = 0
+                lastErr = e.message ?: "异常"
             }
 
-            if (gotAnyChunk) {
-                UsageRecorder.record(
-                    modelId = c.modelId,
-                    modelRequested = selectedModel.id,
-                    providerId = c.providerId,
-                    providerName = c.providerName,
-                    source = source,
-                    success = true,
-                    httpCode = 200,
-                    errorMsg = "",
-                    latencyMs = System.currentTimeMillis() - startAt,
-                    promptTokens = estimateTokens(history),
-                    completionTokens = (outChars / 3).coerceAtLeast(1),
-                    fallbackDepth = attempted - 1
-                )
-                return@flow
+            if (gotContent) {
+                val latency = if (firstChunkAt > 0) firstChunkAt - modelStarted
+                else System.currentTimeMillis() - modelStarted
+                HealthTracker.record(att.source.key, true, latency)
+                CooldownTracker.markSuccess(att.source.key)
+                recordUsage(att, source, true, 200, "", latency, history, sb.length, attempt - 1)
+                emit(StreamEvent.Done(att.source.modelId, att.source.providerName))
+                return TryResult(true, "", 200)
             }
 
-            lastError = failureMsg
-            lastCode = failureCode
-            UsageRecorder.record(
-                modelId = c.modelId,
-                modelRequested = selectedModel.id,
-                providerId = c.providerId,
-                providerName = c.providerName,
-                source = source,
-                success = false,
-                httpCode = failureCode,
-                errorMsg = failureMsg,
-                latencyMs = System.currentTimeMillis() - startAt,
-                promptTokens = estimateTokens(history),
-                completionTokens = 0,
-                fallbackDepth = attempted - 1
-            )
-            CooldownTracker.markFailed(
-                "${c.providerId}:${c.keyLabel}",
-                CooldownTracker.cooldownFor(failureCode),
-                failureMsg
-            )
+            val latency = System.currentTimeMillis() - modelStarted
+            HealthTracker.record(att.source.key, false, latency)
+            recordUsage(att, source, false, lastCode, lastErr, latency, history, 0, attempt - 1)
 
-            if (policy == FallbackPolicy.STRICT) {
-                emit(StreamEvent.Failed(failureMsg, failureCode))
-                return@flow
+            if (lastCode == 401 || lastCode == 402 || lastCode == 403 || lastCode == 404) {
+                CooldownTracker.markHardFailure(att.source.key, lastCode, lastErr)
+                break
             }
+            if (lastCode != 0 && !policy.shouldRetry(lastCode)) break
+            if (attempt < policy.maxAttempts) delay(policy.backoffFor(attempt))
         }
 
-        emit(StreamEvent.Failed("所有接口都失败了：$lastError", lastCode))
+        CooldownTracker.markSoftFailure(att.source.key, lastErr.ifBlank { "重试耗尽" })
+        return TryResult(false, lastErr.ifBlank { "重试 ${policy.maxAttempts} 次仍失败" }, lastCode)
     }
 
-    private fun buildCandidates(
-        selected: ModelEntry,
-        pref: ModelPreference,
-        policy: FallbackPolicy
-    ): List<Candidate> {
-        val list = mutableListOf<Candidate>()
-
-        fun addProviderModels(providerId: String, modelIds: List<String>) {
-            val p = providers.firstOrNull { it.id == providerId && it.enabled } ?: return
-            if (p.apiKeys.isEmpty() || p.baseUrl.isBlank()) return
+    /** 展开某个模型组的全部来源，按路由顺序 */
+    private fun buildAttempts(target: ModelGroup): List<Attempt> {
+        val ordered = AutoRouter.order(target)
+        val list = mutableListOf<Attempt>()
+        ordered.forEach { src ->
+            val p = providers.firstOrNull { it.id == src.providerId } ?: return@forEach
+            if (!p.enabled || p.baseUrl.isBlank() || p.apiKeys.isEmpty()) return@forEach
             p.apiKeys.forEachIndexed { idx, key ->
-                modelIds.forEach { mid ->
-                    list.add(Candidate(
-                        modelId = mid,
-                        providerId = p.id,
-                        providerName = p.name,
-                        baseUrl = p.baseUrl,
-                        apiKey = key,
-                        keyLabel = "#${idx + 1}",
-                        protocol = p.protocol
-                    ))
-                }
+                list.add(Attempt(target, src, p.baseUrl, key, idx))
             }
         }
-
-        addProviderModels(selected.providerId, listOf(selected.id))
-        if (policy == FallbackPolicy.STRICT) return list
-
-        if (policy == FallbackPolicy.NEAR_MODEL || policy == FallbackPolicy.ANY) {
-            val siblings = availableModels
-                .filter { it.providerId == selected.providerId && it.id != selected.id }
-                .sortedBy { nearScore(selected.id, it.id) }
-                .take(3)
-                .map { it.id }
-            if (siblings.isNotEmpty()) addProviderModels(selected.providerId, siblings)
-        }
-
-        if (pref.fallbackProviders.isNotEmpty()) {
-            pref.fallbackProviders.forEach { pid ->
-                val models = availableModels.filter { it.providerId == pid }.take(3).map { it.id }
-                val fallbackModels = models.ifEmpty { listOf(selected.id) }
-                addProviderModels(pid, fallbackModels)
-            }
-        }
-
-        if (policy == FallbackPolicy.ANY) {
-            providers.filter { it.enabled && it.id != selected.providerId && it.apiKeys.isNotEmpty() }
-                .forEach { p ->
-                    val models = availableModels.filter { it.providerId == p.id }.take(2).map { it.id }
-                    if (models.isNotEmpty()) addProviderModels(p.id, models)
-                }
-        }
-
         return list
     }
 
-    /** 粗估 token：中文约 1.5 字/token，英文约 4 字符/token，这里取折中 3 */
+    private fun recordUsage(
+        att: Attempt,
+        source: String,
+        success: Boolean,
+        code: Int,
+        err: String,
+        latency: Long,
+        history: List<Pair<String, String>>,
+        outChars: Int,
+        depth: Int
+    ) {
+        UsageRecorder.record(
+            modelId = att.source.modelId,
+            modelRequested = att.group.modelId,
+            providerId = att.source.providerId,
+            providerName = att.source.providerName,
+            source = source,
+            success = success,
+            httpCode = code,
+            errorMsg = err,
+            latencyMs = latency,
+            promptTokens = estimateTokens(history),
+            completionTokens = if (outChars > 0) (outChars / 3).coerceAtLeast(1) else 0,
+            fallbackDepth = depth
+        )
+    }
+
     private fun estimateTokens(history: List<Pair<String, String>>): Int {
         val chars = history.sumOf { it.second.length }
         return (chars / 3).coerceAtLeast(1)
-    }
-
-    private fun nearScore(a: String, b: String): Int {
-        val family = { s: String -> s.substringBefore('/').substringBefore('-').lowercase() }
-        var score = 0
-        if (family(a) == family(b)) score -= 10
-        val da = a.lowercase(); val db = b.lowercase()
-        if (da.contains("mini") == db.contains("mini")) score -= 3
-        if (da.contains("pro") == db.contains("pro")) score -= 2
-        if (da.contains("flash") == db.contains("flash")) score -= 1
-        return score
     }
 }

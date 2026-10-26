@@ -2,8 +2,9 @@ package com.eta.aigateway.gateway
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.eta.aigateway.data.model.ModelEntry
+import com.eta.aigateway.data.model.ModelGroup
 import com.eta.aigateway.data.model.StreamEvent
+import com.eta.aigateway.engine.AutoRouter
 import com.eta.aigateway.engine.GatewayEngine
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.runBlocking
@@ -48,11 +49,17 @@ internal class ChatHandler(
 
         if (msgs.isEmpty()) return err(400, "messages is empty")
 
-        val model = st.models.firstOrNull { it.id == modelId }
-            ?: st.models.firstOrNull()
-            ?: return err(400, "no available model, 请先在 App 内配置 provider 并拉取模型")
+        val enabled = st.groups.filter { it.enabled && it.enabledSources.isNotEmpty() }
+        if (enabled.isEmpty()) {
+            return err(400, "没有启用的模型，请在 App 内勾选模型")
+        }
+        val model: ModelGroup = when (modelId) {
+            "auto", "" -> enabled.firstOrNull { !AutoRouter.isExhausted(it) } ?: enabled.first()
+            else -> enabled.firstOrNull { it.modelId == modelId }
+                ?: return err(404, "模型 $modelId 未启用或不存在")
+        }
 
-        val engine = GatewayEngine(st.providers, st.prefs, st.models)
+        val engine = GatewayEngine(st.providers, st.groups)
 
         return if (stream) streamResponse(engine, model, msgs, temp)
         else blockingResponse(engine, model, msgs, temp)
@@ -60,13 +67,13 @@ internal class ChatHandler(
 
     private fun blockingResponse(
         engine: GatewayEngine,
-        model: ModelEntry,
+        model: ModelGroup,
         msgs: List<Pair<String, String>>,
         temp: Double
     ): NanoHTTPD.Response {
         val sb = StringBuilder()
         var errMsg: String? = null
-        var doneModel = model.id
+        var doneModel = model.modelId
         runBlocking {
             engine.chat(model, msgs, temp, source = "api").collect { ev ->
                 when (ev) {
@@ -105,7 +112,7 @@ internal class ChatHandler(
 
     private fun streamResponse(
         engine: GatewayEngine,
-        model: ModelEntry,
+        model: ModelGroup,
         msgs: List<Pair<String, String>>,
         temp: Double
     ): NanoHTTPD.Response {
@@ -127,7 +134,7 @@ internal class ChatHandler(
                                 is StreamEvent.Chunk -> {
                                     val chunk = mapOf(
                                         "id" to id, "object" to "chat.completion.chunk",
-                                        "created" to created, "model" to model.id,
+                                        "created" to created, "model" to model.modelId,
                                         "choices" to listOf(mapOf(
                                             "index" to 0,
                                             "delta" to mapOf("content" to ev.text),

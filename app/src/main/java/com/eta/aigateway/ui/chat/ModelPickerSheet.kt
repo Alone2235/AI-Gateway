@@ -1,10 +1,10 @@
 package com.eta.aigateway.ui.chat
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
@@ -14,56 +14,63 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.eta.aigateway.data.model.ModelEntry
+import com.eta.aigateway.data.model.ModelGroup
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelPickerSheet(
-    models: List<ModelEntry>,
-    current: ModelEntry?,
-    onSelect: (ModelEntry) -> Unit,
+    groups: List<ModelGroup>,
+    current: ModelGroup?,
+    onSelect: (ModelGroup) -> Unit,
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
-    val filtered = remember(query, models) {
-        if (query.isBlank()) models
-        else models.filter { it.id.contains(query, true) || it.providerName.contains(query, true) }
+    val enabled = remember(groups) { groups.filter { it.enabled } }
+    val filtered = remember(query, enabled) {
+        if (query.isBlank()) enabled
+        else enabled.filter {
+            it.modelId.contains(query, true) ||
+                it.sources.any { s -> s.providerName.contains(query, true) }
+        }
     }
-    val grouped = remember(filtered) { filtered.groupBy { it.providerName } }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             Text("选择模型", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(
+                "只显示已启用的模型 · 共 ${enabled.size} 个",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("搜索模型 / provider", fontSize = 14.sp) },
+                placeholder = { Text("搜索模型 / 来源", fontSize = 14.sp) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
             Spacer(Modifier.height(10.dp))
-            ModelList(models, grouped, current, onSelect)
+            ModelGroupList(filtered, current, onSelect)
             Spacer(Modifier.height(20.dp))
         }
     }
 }
 
 @Composable
-private fun ModelList(
-    all: List<ModelEntry>,
-    grouped: Map<String, List<ModelEntry>>,
-    current: ModelEntry?,
-    onSelect: (ModelEntry) -> Unit
+private fun ModelGroupList(
+    list: List<ModelGroup>,
+    current: ModelGroup?,
+    onSelect: (ModelGroup) -> Unit
 ) {
-    if (all.isEmpty()) {
+    if (list.isEmpty()) {
         Column(
             Modifier.fillMaxWidth().padding(vertical = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("还没有可用模型", fontWeight = FontWeight.Medium)
+            Text("没有已启用的模型", fontWeight = FontWeight.Medium)
             Text(
-                "去设置里填 API Key 然后拉取模型列表",
+                "去 设置 → 模型 里勾选要用的模型",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -71,61 +78,55 @@ private fun ModelList(
         return
     }
 
-    LazyColumn(Modifier.heightIn(max = 480.dp)) {
-        grouped.forEach { (providerName, list) ->
-            item(key = "h_$providerName") {
-                Text(
-                    providerName,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
-                )
-            }
-            items(list, key = { "${it.providerId}_${it.id}" }) { m ->
-                val isSel = current?.id == m.id && current.providerId == m.providerId
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelect(m) }
-                        .padding(vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(m.displayName, fontSize = 14.sp)
-                        if (m.custom || m.displayName != m.id) {
-                            Text(
-                                m.id,
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
+    LazyColumn(Modifier.heightIn(max = 460.dp)) {
+        items(list, key = { it.modelId }) { g ->
+            val sel = current?.modelId == g.modelId
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(g) }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(g.displayName, fontSize = 14.sp, maxLines = 1)
+                        if (g.sources.size > 1) {
+                            Spacer(Modifier.width(6.dp))
+                            Badge(g.sources.size)
                         }
                     }
-                    if (m.protocol == "anthropic") {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Text(
-                                "A",
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                            )
-                        }
-                        Spacer(Modifier.width(6.dp))
-                    }
-                    if (isSel) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    Text(
+                        g.sources.joinToString(" / ") { it.providerName },
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                if (sel) {
+                    Icon(
+                        Icons.Default.Check,
+                        null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
         }
+    }
+}
+
+@Composable
+private fun Badge(count: Int) {
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer
+    ) {
+        Text(
+            "$count 源",
+            fontSize = 9.sp,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+        )
     }
 }

@@ -9,7 +9,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.eta.aigateway.MainActivity
 import com.eta.aigateway.data.db.AppDatabase
-import com.eta.aigateway.data.model.ModelEntry
+import com.eta.aigateway.data.model.ModelGroup
+import com.eta.aigateway.data.repository.ModelGroupRepository
 import com.eta.aigateway.data.repository.SettingsRepository
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.*
@@ -63,20 +64,16 @@ class GatewayService : Service() {
                 val providers = repo.providers.first()
                 val cache = repo.modelCache.first()
                 val prefs = repo.modelPreferences.first()
-
-                val models = providers.filter { it.enabled && it.baseUrl.isNotBlank() }
-                    .flatMap { p ->
-                        (cache[p.id] ?: emptyList()).map { mid ->
-                            ModelEntry(mid, mid.substringAfterLast('/'), p.id, p.name)
-                        }
-                    }
+                val groups = ModelGroupRepository(
+                    com.eta.aigateway.data.db.AppDatabase.getInstance(applicationContext)
+                ).loadGroups(providers, cache)
 
                 val bindAddr = if (allowLan) null else "127.0.0.1"
                 val srv = GatewayServer(port, {
                     GatewayServer.GatewayState(
                         accessKeys = accessKeys,
                         providers = providers,
-                        models = models,
+                        groups = groups,
                         prefs = prefs,
                         enabled = true,
                         allowLan = allowLan

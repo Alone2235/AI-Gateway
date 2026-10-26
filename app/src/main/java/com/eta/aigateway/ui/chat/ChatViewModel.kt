@@ -5,8 +5,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.eta.aigateway.data.db.AppDatabase
 import com.eta.aigateway.data.model.*
+import com.eta.aigateway.data.repository.ModelGroupRepository
 import com.eta.aigateway.data.repository.SettingsRepository
 import com.eta.aigateway.engine.GatewayEngine
+import com.eta.aigateway.engine.RetryPolicy
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -17,7 +19,7 @@ data class ChatUiState(
     val input: String = "",
     val streaming: Boolean = false,
     val streamingText: String = "",
-    val currentModel: ModelEntry? = null,
+    val currentGroup: ModelGroup? = null,
     val statusHint: String? = null,
     val error: String? = null,
     val sessionId: String = ""
@@ -27,58 +29,35 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private val db = AppDatabase.getInstance(app)
     private val repo = SettingsRepository(app)
+    private val groupRepo = ModelGroupRepository(db)
 
     private val _state = MutableStateFlow(ChatUiState(sessionId = UUID.randomUUID().toString()))
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
+    private val _groups = MutableStateFlow<List<ModelGroup>>(emptyList())
+    val groups: StateFlow<List<ModelGroup>> = _groups.asStateFlow()
+
     val providers = repo.providers
-    val modelPreferences = repo.modelPreferences
 
     private var streamJob: Job? = null
-    private val _allModels = MutableStateFlow<List<ModelEntry>>(emptyList())
-    val allModels: StateFlow<List<ModelEntry>> = _allModels.asStateFlow()
 
-    fun refreshModels(
-        cache: Map<String, List<String>>,
-        providerList: List<ProviderConfig>,
-        customModels: List<CustomModel> = emptyList()
-    ) {
-        val pulled = providerList.filter { it.enabled && it.baseUrl.isNotBlank() }
-            .flatMap { p ->
-                (cache[p.id] ?: emptyList()).map { mid ->
-                    ModelEntry(
-                        id = mid,
-                        displayName = mid,
-                        providerId = p.id,
-                        providerName = p.name,
-                        protocol = p.protocol
-                    )
-                }
-            }
-        val custom = customModels.mapNotNull { cm ->
-            val p = providerList.firstOrNull { it.id == cm.providerId } ?: return@mapNotNull null
-            ModelEntry(
-                id = cm.modelId,
-                displayName = cm.displayName,
-                providerId = cm.providerId,
-                providerName = p.name,
-                protocol = cm.protocol,
-                custom = true
-            )
-        }
-        // 自定义优先显示，并去重
-        _allModels.value = (custom + pulled).distinctBy { "${it.providerId}|${it.id}" }
-        _state.value.currentModel?.let { cur ->
-            val updated = _allModels.value.firstOrNull { it.id == cur.id && it.providerId == cur.providerId }
-            if (updated != null) _state.update { it.copy(currentModel = updated) }
-        }
+    suspend fun refreshGroups() {
+        val ps = providers.first()
+        val cache = repo.modelCache.first()
+        val list = groupRepo.loadGroups(ps, cache)
+        _groups.value = list
+
+        // 当前选择失效则自动切到第一个启用的
+        val cur = _state.value.currentGroup
+        val updated = cur?.let { c -> list.firstOrNull { it.modelId == c.modelId } }
+            ?: list.firstOrNull { it.enabled }
+        if (updated != null) _state.update { it.copy(currentGroup = updated) }
     }
 
-    fun allAvailableModels(): List<ModelEntry> = _allModels.value
+    fun selectedGroup(): ModelGroup? = _state.value.currentGroup ?: _groups.value.firstOrNull { it.enabled }
 
-    fun selectModel(m: ModelEntry) {
-        _state.update { it.copy(currentModel = m) }
-        viewModelScope.launch { repo.saveSelectedModel(m.id) }
+    fun selectGroup(g: ModelGroup) {
+        _state.update { it.copy(currentGroup = g) }
     }
 
     fun updateInput(t: String) = _state.update { it.copy(input = t) }
@@ -88,16 +67,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         streamJob?.cancel()
         _state.value = ChatUiState(
             sessionId = UUID.randomUUID().toString(),
-            currentModel = _state.value.currentModel
+            currentGroup = _state.value.currentGroup
         )
     }
+}
 
     fun send() {
         val st = _state.value
         val text = st.input.trim()
         if (text.isEmpty() || st.streaming) return
-        val model = st.currentModel ?: run {
-            _state.update { it.copy(error = "请先选择模型") }
+
+        val group = selectedGroup()
+        if (group == null) {
+            _state.update { it.copy(error = "没有启用的模型。请到设置 → 模型 里勾选要用的模型") }
             return
         }
 
@@ -110,20 +92,22 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 content = text
             )
             _state.update {
-                it.copy(messages = it.messages + userMsg, input = "", streaming = true, streamingText = "", error = null)
+                it.copy(
+                    messages = it.messages + userMsg,
+                    input = "", streaming = true, streamingText = "", error = null
+                )
             }
             db.messageDao().insert(userMsg)
 
             val history = _state.value.messages.filter { !it.isError }.map { it.role to it.content }
-            val providerList = providers.first()
-            val prefs = modelPreferences.first()
-            val engine = GatewayEngine(providerList, prefs, _allModels.value)
+            val ps = providers.first()
+            val engine = GatewayEngine(ps, _groups.value, RetryPolicy())
 
             val sb = StringBuilder()
-            var finalModel = model.id
-            var finalProvider = model.providerName
+            var finalModel = group.modelId
+            var finalProvider = ""
 
-            engine.chat(model, history).collect { ev ->
+            engine.chat(group, history, source = "app").collect { ev ->
                 when (ev) {
                     is StreamEvent.Chunk -> {
                         sb.append(ev.text)
@@ -150,11 +134,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 )
                 db.messageDao().insert(aiMsg)
                 _state.update {
-                    it.copy(messages = it.messages + aiMsg, streaming = false, streamingText = "", statusHint = null)
+                    it.copy(
+                        messages = it.messages + aiMsg,
+                        streaming = false, streamingText = "", statusHint = null
+                    )
                 }
             } else {
                 _state.update { it.copy(streaming = false, streamingText = "") }
             }
+            // 更新健康状态展示
+            refreshGroups()
         }
     }
 

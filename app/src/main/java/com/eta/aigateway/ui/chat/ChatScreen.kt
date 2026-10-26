@@ -15,15 +15,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eta.aigateway.data.model.ChatMessage
-import com.eta.aigateway.data.model.ModelEntry
+import com.eta.aigateway.data.model.ModelGroup
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     vm: ChatViewModel,
-    availableModels: List<ModelEntry>,
+    groups: List<ModelGroup>,
     onOpenSettings: () -> Unit,
-    onOpenDashboard: () -> Unit
+    onOpenDashboard: () -> Unit,
+    onOpenModels: () -> Unit
 ) {
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
@@ -41,7 +42,7 @@ fun ChatScreen(
                     Column {
                         Text("AI Gateway", fontWeight = FontWeight.Bold, fontSize = 17.sp)
                         Text(
-                            state.currentModel?.id ?: "未选择模型",
+                            state.currentGroup?.displayName ?: "未选择模型",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -53,6 +54,9 @@ fun ChatScreen(
                     }
                     IconButton(onClick = { vm.newSession() }) {
                         Icon(Icons.Default.AddComment, "新对话")
+                    }
+                    IconButton(onClick = onOpenModels) {
+                        Icon(Icons.Default.List, "模型")
                     }
                     IconButton(onClick = onOpenDashboard) {
                         Icon(Icons.Default.Insights, "仪表盘")
@@ -78,9 +82,9 @@ fun ChatScreen(
 
     if (showModelPicker) {
         ModelPickerSheet(
-            models = availableModels,
-            current = state.currentModel,
-            onSelect = { vm.selectModel(it); showModelPicker = false },
+            groups = groups,
+            current = state.currentGroup,
+            onSelect = { vm.selectGroup(it); showModelPicker = false },
             onDismiss = { showModelPicker = false }
         )
     }
