@@ -70,7 +70,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             currentGroup = _state.value.currentGroup
         )
     }
-}
 
     fun send() {
         val st = _state.value
