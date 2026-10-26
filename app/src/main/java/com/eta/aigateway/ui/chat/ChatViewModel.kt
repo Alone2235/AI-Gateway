@@ -135,7 +135,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 config = ContextCompressor.Config(enabled = compressOn, triggerTokens = threshold)
             ) { model, msgs ->
                 val sb = StringBuilder()
-            val rsb = StringBuilder()
                 GatewayEngine(ps, _groups.value, RetryPolicy())
                     .chat(model, msgs, 0.3, source = "compress")
                     .collect { ev -> if (ev is StreamEvent.Chunk) sb.append(ev.text) }
@@ -143,6 +142,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             val sb = StringBuilder()
+            val rsb = StringBuilder()
             var finalModel = group?.modelId ?: ""
             var finalProvider = ""
 
