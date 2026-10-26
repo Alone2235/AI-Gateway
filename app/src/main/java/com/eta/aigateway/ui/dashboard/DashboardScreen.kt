@@ -8,6 +8,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.eta.aigateway.ui.theme.glass
+import com.eta.aigateway.ui.theme.Dimens
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,8 +28,12 @@ fun DashboardScreen(vm: DashboardViewModel, onBack: () -> Unit) {
     LaunchedEffect(Unit) { vm.refresh() }
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
             TopAppBar(
+                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent
+                ),
                 title = { Text("仪表盘", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -72,7 +78,7 @@ private fun StatCards(st: DashboardState) {
 
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    ElevatedCard(modifier) {
+    androidx.compose.foundation.layout.Column(modifier.glass(Dimens.cardRadius)) {
         Column(Modifier.padding(14.dp)) {
             Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
@@ -83,7 +89,7 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 
 @Composable
 private fun GatewayCard(st: DashboardState) {
-    ElevatedCard(Modifier.fillMaxWidth()) {
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().glass(Dimens.cardRadius)) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -135,7 +141,7 @@ private fun BalanceSection(st: DashboardState, vm: DashboardViewModel) {
 
 @Composable
 private fun BalanceRow(b: BalanceSnapshot) {
-    ElevatedCard(Modifier.fillMaxWidth()) {
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().glass(Dimens.cardRadius)) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(b.providerName, fontSize = 13.sp, fontWeight = FontWeight.Medium)
@@ -170,7 +176,7 @@ private fun ProviderSection(list: List<ProviderAgg>) {
             Text("今日还没有调用记录", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             list.forEach { p ->
-                ElevatedCard(Modifier.fillMaxWidth()) {
+                androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().glass(Dimens.cardRadius)) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(p.providerName, fontSize = 13.sp, fontWeight = FontWeight.Medium)
@@ -206,7 +212,7 @@ private fun RecentSection(list: List<UsageRecord>) {
             Text("暂无记录", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             list.take(15).forEach { r ->
-                ElevatedCard(Modifier.fillMaxWidth()) {
+                androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().glass(Dimens.cardRadius)) {
                     Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             if (r.success) Icons.Default.CheckCircle else Icons.Default.Error,

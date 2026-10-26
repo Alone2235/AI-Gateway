@@ -8,6 +8,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.eta.aigateway.ui.theme.DeepSeaBackground
+import com.eta.aigateway.ui.theme.LocalBackdrop
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -61,23 +67,39 @@ fun AppRoot() {
     val modelsVm: ModelsViewModel = viewModel()
     var screen by remember { mutableStateOf(Screen.CHAT) }
 
+    val backdrop = rememberLayerBackdrop()
+
     LaunchedEffect(screen) {
         if (screen == Screen.CHAT) chatVm.refreshGroups()
     }
 
-    when (screen) {
-        Screen.CHAT -> {
-            val groups by chatVm.groups.collectAsState()
-            ChatScreen(
-                vm = chatVm,
-                groups = groups,
-                onOpenSettings = { screen = Screen.SETTINGS },
-                onOpenDashboard = { screen = Screen.DASHBOARD },
-                onOpenModels = { screen = Screen.MODELS }
-            )
+    // 导出层：背景 + 内容都进离屏画布，供玻璃折射
+    Box(Modifier.fillMaxSize()) {
+        // 背景画在导出层内
+        Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+            DeepSeaBackground {
+                Box(Modifier.fillMaxSize()) { }
+            }
         }
-        Screen.SETTINGS -> SettingsScreen(settingsVm) { screen = Screen.CHAT }
-        Screen.DASHBOARD -> DashboardScreen(dashVm) { screen = Screen.CHAT }
-        Screen.MODELS -> ModelsScreen(modelsVm) { screen = Screen.CHAT }
+        // 内容层叠在背景之上，玻璃从这里引用 backdrop
+        Box(Modifier.fillMaxSize()) {
+            CompositionLocalProvider(LocalBackdrop provides backdrop) {
+                when (screen) {
+                    Screen.CHAT -> {
+                        val groups by chatVm.groups.collectAsState()
+                        ChatScreen(
+                            vm = chatVm,
+                            groups = groups,
+                            onOpenSettings = { screen = Screen.SETTINGS },
+                            onOpenDashboard = { screen = Screen.DASHBOARD },
+                            onOpenModels = { screen = Screen.SETTINGS }
+                        )
+                    }
+                    Screen.SETTINGS -> SettingsScreen(settingsVm) { screen = Screen.CHAT }
+                    Screen.DASHBOARD -> DashboardScreen(dashVm) { screen = Screen.CHAT }
+                    Screen.MODELS -> ModelsScreen(modelsVm) { screen = Screen.CHAT }
+                }
+            }
+        }
     }
 }

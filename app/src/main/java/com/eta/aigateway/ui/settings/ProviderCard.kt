@@ -47,7 +47,7 @@ fun ProviderCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .glassStatic(Dimens.cardRadius, if (expanded) GlassLevel.Strong else GlassLevel.Weak)
+            .glass(Dimens.cardRadius, if (expanded) GlassLevel.Strong else GlassLevel.Weak)
             .padding(Dimens.cardPadding)
     ) {
         ProviderHeader(p, modelCount, loading, expanded, onToggle) { expanded = !expanded }

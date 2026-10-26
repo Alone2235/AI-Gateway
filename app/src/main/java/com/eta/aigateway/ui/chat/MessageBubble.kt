@@ -51,7 +51,7 @@ fun MessageBubble(msg: ChatMessage) {
             } else {
                 Column(
                     Modifier
-                        .glassStatic(18.dp, GlassLevel.Weak)
+                        .glass(18.dp, GlassLevel.Weak)
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
                     MarkdownText(msg.content, MaterialTheme.colorScheme.onSurface)

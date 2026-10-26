@@ -4,22 +4,76 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.shadow.InnerShadow
+import com.kyant.backdrop.shadow.Shadow
+import com.kyant.shapes.RoundedRectangle
 
-/** 深海鲸蓝玻璃底色 */
+/** 全局 backdrop：由 AppRoot 导出内容层提供 */
+val LocalBackdrop = staticCompositionLocalOf<Backdrop?> { null }
+
 val GlassTint = Color(0xFF9EC5FF)
 
 /**
- * 纯 Compose 玻璃（HyperOS 安全）。
- * 白/蓝半透明渐变 + 1px 高光描边，视觉与折射玻璃统一。
+ * 真·液态玻璃：离屏导出内容层 + 实时折射。
+ *
+ * 三层效果：
+ *   vibrancy  色彩增强
+ *   blur      背景模糊
+ *   lens      边缘折射（透镜畸变，这是"液态"的来源）
+ *
+ * 若 backdrop 未提供则自动降级为静态玻璃，不会崩。
  */
+@Composable
+fun Modifier.glass(
+    level: GlassLevel = GlassLevel.Weak,
+    radius: Dp = Dimens.cardRadius,
+    tint: Color = GlassTint
+): Modifier {
+    val backdrop = LocalBackdrop.current ?: return this.glassStatic(radius, level, tint)
+    val shape = RoundedRectangle(radius)
+
+    return this.drawBackdrop(
+        backdrop = backdrop,
+        shape = { shape },
+        effects = {
+            vibrancy()
+            when (level) {
+                GlassLevel.Weak -> {
+                    blur(6.dp.toPx())
+                    lens(10.dp.toPx(), 18.dp.toPx())
+                }
+                GlassLevel.Strong -> {
+                    blur(10.dp.toPx())
+                    lens(16.dp.toPx(), 28.dp.toPx())
+                }
+            }
+        },
+        highlight = {
+            Highlight(alpha = if (level == GlassLevel.Weak) 0.5f else 0.68f)
+        },
+        shadow = { Shadow(alpha = 1f) },
+        innerShadow = { InnerShadow(radius = 12.dp, alpha = 0.32f) },
+        onDrawSurface = {
+            val base = if (level == GlassLevel.Weak) 0.10f else 0.15f
+            drawRect(tint.copy(alpha = base))
+        }
+    )
+}
+
+/** 静态玻璃兜底（无折射），视觉与折射玻璃接近 */
 fun Modifier.glassStatic(
     radius: Dp = Dimens.cardRadius,
     level: GlassLevel = GlassLevel.Weak,
@@ -27,53 +81,12 @@ fun Modifier.glassStatic(
 ): Modifier {
     val shape = RoundedCornerShape(radius)
     val baseAlpha = if (level == GlassLevel.Weak) 0.10f else 0.16f
-    val topAlpha = baseAlpha * 1.5f
     return this
         .clip(shape)
         .background(
             Brush.verticalGradient(
-                listOf(
-                    tint.copy(alpha = topAlpha),
-                    tint.copy(alpha = baseAlpha)
-                )
+                listOf(tint.copy(alpha = baseAlpha * 1.5f), tint.copy(alpha = baseAlpha))
             )
         )
-        .border(
-            width = 1.dp,
-            color = Color.White.copy(alpha = if (level == GlassLevel.Weak) 0.14f else 0.22f),
-            shape = shape
-        )
-}
-
-/** 强调色玻璃（用于主要操作 / 选中态） */
-fun Modifier.glassAccent(
-    radius: Dp = Dimens.cardRadius,
-    accent: Color
-): Modifier {
-    val shape = RoundedCornerShape(radius)
-    return this
-        .clip(shape)
-        .background(
-            Brush.verticalGradient(
-                listOf(accent.copy(alpha = 0.26f), accent.copy(alpha = 0.14f))
-            )
-        )
-        .border(1.dp, accent.copy(alpha = 0.35f), shape)
-}
-
-/** 玻璃卡片容器 */
-@Composable
-fun GlassCard(
-    modifier: Modifier = Modifier,
-    level: GlassLevel = GlassLevel.Weak,
-    radius: Dp = Dimens.cardRadius,
-    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
-) {
-    androidx.compose.foundation.layout.Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .glassStatic(radius, level)
-            .padding(Dimens.cardPadding),
-        content = content
-    )
+        .border(1.dp, Color.White.copy(alpha = if (level == GlassLevel.Weak) 0.14f else 0.22f), shape)
 }

@@ -20,7 +20,7 @@ fun CompressSection(vm: SettingsViewModel) {
     Column(
         Modifier
             .fillMaxWidth()
-            .glassStatic(Dimens.cardRadius)
+            .glass(Dimens.cardRadius)
             .padding(Dimens.cardPadding)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

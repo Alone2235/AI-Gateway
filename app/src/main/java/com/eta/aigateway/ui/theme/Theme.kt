@@ -2,6 +2,7 @@ package com.eta.aigateway.ui.theme
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -63,14 +64,53 @@ fun AIGatewayTheme(
 ) {
     val scheme = if (darkTheme) DarkColors else LightColors
     MaterialTheme(colorScheme = scheme) {
-        // 深海渐变底
-        val bg = if (darkTheme) {
-            Brush.verticalGradient(listOf(AbyssTop, AbyssMid, AbyssBottom))
-        } else {
-            Brush.verticalGradient(listOf(Color(0xFFEAF3FF), Color(0xFFF6FAFF)))
+        content()
+    }
+}
+
+/**
+ * 深海背景：多层径向光斑 + 竖向渐变。
+ * 有内容玻璃才有东西可折射，纯色背景看不出液态效果。
+ */
+@Composable
+fun DeepSeaBackground(content: @Composable () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(AbyssTop, AbyssMid, AbyssBottom)))
+    ) {
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            // 顶部辉光
+            drawCircle(
+                Brush.radialGradient(
+                    listOf(Color(0xFF1E5FA8).copy(alpha = 0.55f), Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(size.width * 0.2f, size.height * 0.12f),
+                    radius = size.width * 0.85f
+                ),
+                radius = size.width * 0.85f,
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.2f, size.height * 0.12f)
+            )
+            // 中下青绿光斑
+            drawCircle(
+                Brush.radialGradient(
+                    listOf(Color(0xFF1FBFA8).copy(alpha = 0.35f), Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(size.width * 0.85f, size.height * 0.62f),
+                    radius = size.width * 0.7f
+                ),
+                radius = size.width * 0.7f,
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.85f, size.height * 0.62f)
+            )
+            // 底部蓝紫余晖
+            drawCircle(
+                Brush.radialGradient(
+                    listOf(Color(0xFF3A4BB5).copy(alpha = 0.4f), Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(size.width * 0.1f, size.height * 0.95f),
+                    radius = size.width * 0.75f
+                ),
+                radius = size.width * 0.75f,
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.1f, size.height * 0.95f)
+            )
         }
-        Box(Modifier.fillMaxSize().background(bg)) {
-            content()
-        }
+        content()
     }
 }
