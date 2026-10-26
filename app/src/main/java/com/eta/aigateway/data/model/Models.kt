@@ -81,6 +81,8 @@ data class ModelPreference(
 /** 流式事件 */
 sealed class StreamEvent {
     data class Chunk(val text: String) : StreamEvent()
+    /** 思考过程（思维链），与正文分开 */
+    data class Reasoning(val text: String) : StreamEvent()
     data class Done(val model: String, val provider: String, val tokenOut: Int = 0) : StreamEvent()
     data class Failed(val reason: String, val code: Int = 0) : StreamEvent()
     data class Switched(val fromModel: String, val toModel: String, val reason: String) : StreamEvent()

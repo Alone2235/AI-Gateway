@@ -21,6 +21,7 @@ data class ChatUiState(
     val input: String = "",
     val streaming: Boolean = false,
     val streamingText: String = "",
+    val reasoningText: String = "",
     val currentGroup: ModelGroup? = null,
     val currentTier: VirtualTier? = null,
     val statusHint: String? = null,
@@ -102,7 +103,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             _state.update {
                 it.copy(
                     messages = it.messages + userMsg,
-                    input = "", streaming = true, streamingText = "", error = null
+                    input = "", streaming = true, streamingText = "", reasoningText = "", error = null
                 )
             }
             db.messageDao().insert(userMsg)
@@ -134,6 +135,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 config = ContextCompressor.Config(enabled = compressOn, triggerTokens = threshold)
             ) { model, msgs ->
                 val sb = StringBuilder()
+            val rsb = StringBuilder()
                 GatewayEngine(ps, _groups.value, RetryPolicy())
                     .chat(model, msgs, 0.3, source = "compress")
                     .collect { ev -> if (ev is StreamEvent.Chunk) sb.append(ev.text) }
@@ -148,6 +150,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                        else engine.chat(group!!, history, source = "app")
             flow.collect { ev ->
                 when (ev) {
+                    is StreamEvent.Reasoning -> {
+                        rsb.append(ev.text)
+                        _state.update { it.copy(reasoningText = rsb.toString()) }
+                    }
                     is StreamEvent.Chunk -> {
                         sb.append(ev.text)
                         _state.update { it.copy(streamingText = sb.toString()) }

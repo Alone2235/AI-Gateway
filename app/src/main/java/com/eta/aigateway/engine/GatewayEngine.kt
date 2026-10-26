@@ -133,6 +133,8 @@ class GatewayEngine(
         var attempt = 0
         var lastErr = ""
         var lastCode = 0
+        var sameCodeCount = 0
+        var prevCode = 0
         val sb = StringBuilder()
         val modelStarted = System.currentTimeMillis()
 
@@ -142,6 +144,8 @@ class GatewayEngine(
 
             var gotContent = false
             var firstChunkAt = 0L
+            var burstChars = 0
+            var totalChars = 0
             lastErr = ""
 
             try {
@@ -155,11 +159,15 @@ class GatewayEngine(
                     maxTokens = maxTokens
                 ).collect { ev ->
                     when (ev) {
+                        is StreamEvent.Reasoning -> emit(ev)
                         is StreamEvent.Chunk -> {
+                            val now = System.currentTimeMillis()
                             if (!gotContent) {
                                 gotContent = true
-                                firstChunkAt = System.currentTimeMillis()
+                                firstChunkAt = now
                             }
+                            totalChars += ev.text.length
+                            if (now - firstChunkAt <= 200) burstChars += ev.text.length
                             sb.append(ev.text)
                             emit(ev)
                         }
@@ -180,6 +188,12 @@ class GatewayEngine(
                 else System.currentTimeMillis() - modelStarted
                 HealthTracker.record(att.source.key, true, latency)
                 CooldownTracker.markSuccess(att.source.key)
+                StreamQuality.record(
+                    att.source.key,
+                    firstTokenMs = if (firstChunkAt > 0) firstChunkAt - modelStarted else 0,
+                    totalChars = totalChars,
+                    burstChars = burstChars
+                )
                 recordUsage(att, source, true, 200, "", latency, history, sb.length, attempt - 1)
                 emit(StreamEvent.Done(att.source.modelId, att.source.providerName))
                 return TryResult(true, "", 200)
@@ -194,6 +208,14 @@ class GatewayEngine(
                 break
             }
             if (lastCode != 0 && !policy.shouldRetry(lastCode)) break
+
+            // 同一错误码连续出现，说明上游真的不可用，别浪费次数
+            if (lastCode != 0 && lastCode == prevCode) sameCodeCount++ else sameCodeCount = 0
+            prevCode = lastCode
+            if (lastCode != 0 && sameCodeCount >= policy.giveUpAfterSameCode(lastCode)) {
+                break
+            }
+
             if (attempt < policy.maxAttempts) delay(policy.backoffFor(attempt))
         }
 

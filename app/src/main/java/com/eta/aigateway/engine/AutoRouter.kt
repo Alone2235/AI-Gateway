@@ -16,6 +16,8 @@ object AutoRouter {
             .filter { !CooldownTracker.isCooling(it.key) }
             .sortedWith(
                 compareBy<ModelSource> { healthRank(it) }
+                    // 伪流式来源靠后
+                    .thenBy { if (StreamQuality.isFakeStream(it.key)) 1 else 0 }
                     .thenBy { HealthTracker.avgLatency(it.key).let { l -> if (l == 0L) 5000 else l } }
             )
     }

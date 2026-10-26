@@ -136,6 +136,11 @@ private fun ChatList(state: ChatUiState, listState: androidx.compose.foundation.
         verticalArrangement = Arrangement.spacedBy(Dimens.gap12)
     ) {
         items(state.messages, key = { it.id }) { MessageBubble(it) }
+        if (state.reasoningText.isNotEmpty()) {
+            item {
+                ReasoningBlock(state.reasoningText)
+            }
+        }
         if (state.streamingText.isNotEmpty()) {
             item {
                 MessageBubble(ChatMessage(

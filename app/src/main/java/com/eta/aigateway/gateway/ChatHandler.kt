@@ -156,6 +156,15 @@ internal class ChatHandler(
                                 "finish_reason" to "stop"
                             ))
                         )) + "\n\n")
+                        is StreamEvent.Reasoning -> push("data: " + gson.toJson(mapOf(
+                            "id" to id, "object" to "chat.completion.chunk",
+                            "created" to created, "model" to model.modelId,
+                            "choices" to listOf(mapOf(
+                                "index" to 0,
+                                "delta" to mapOf("reasoning_content" to ev.text),
+                                "finish_reason" to null
+                            ))
+                        )) + "\n\n")
                         is StreamEvent.Failed -> push("data: " +
                             gson.toJson(mapOf("error" to mapOf("message" to ev.reason))) + "\n\n")
                         else -> {}

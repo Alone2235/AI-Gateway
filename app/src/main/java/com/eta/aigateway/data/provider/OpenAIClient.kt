@@ -32,18 +32,28 @@ object OpenAIClient {
         return u.trimEnd('/')
     }
     private val client = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(180, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(300, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
-    private fun buildBody(model: String, messages: List<Pair<String, String>>, stream: Boolean, temperature: Double): String {
+    private fun buildBody(
+        model: String,
+        messages: List<Pair<String, String>>,
+        stream: Boolean,
+        temperature: Double,
+        reasoningEffort: String? = null
+    ): String {
         val obj = JsonObject()
         obj.addProperty("model", model)
         obj.addProperty("stream", stream)
         obj.addProperty("temperature", temperature)
+        // 思考强度：high / medium / low（非思考模型会忽略）
+        reasoningEffort?.takeIf { it.isNotBlank() }?.let {
+            obj.addProperty("reasoning_effort", it)
+        }
         val arr = com.google.gson.JsonArray()
         messages.forEach { (role, content) ->
             val m = JsonObject()
@@ -114,8 +124,16 @@ object OpenAIClient {
                                 val choices = json.getAsJsonArray("choices") ?: continue
                                 if (choices.size() == 0) continue
                                 val delta = choices[0].asJsonObject.getAsJsonObject("delta") ?: continue
+                                // 思维链：不同厂商字段名不同
+                                val reasoning = delta.get("reasoning_content")
+                                    ?: delta.get("reasoning")
+                                    ?: delta.get("thinking")
+                                if (reasoning != null && !reasoning.isJsonNull && reasoning.isJsonPrimitive) {
+                                    val rt = reasoning.asString
+                                    if (rt.isNotEmpty()) trySend(StreamEvent.Reasoning(rt))
+                                }
                                 val content = delta.get("content")
-                                if (content != null && !content.isJsonNull) {
+                                if (content != null && !content.isJsonNull && content.isJsonPrimitive) {
                                     val text = content.asString
                                     if (text.isNotEmpty()) trySend(StreamEvent.Chunk(text))
                                 }
