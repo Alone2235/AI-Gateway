@@ -24,7 +24,8 @@ import com.kyant.shapes.RoundedRectangle
 /** 全局 backdrop：由 AppRoot 导出内容层提供 */
 val LocalBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 
-val GlassTint = Color(0xFF9EC5FF)
+// 浅色玻璃：白色柔光，与 lgmusic 一致
+val GlassTint = Color(0x33FFFFFF)
 
 /**
  * 真·液态玻璃：离屏导出内容层 + 实时折射。
@@ -67,8 +68,8 @@ fun Modifier.glass(
         shadow = { Shadow(alpha = 1f) },
         innerShadow = { InnerShadow(radius = 12.dp, alpha = 0.32f) },
         onDrawSurface = {
-            val base = if (level == GlassLevel.Weak) 0.10f else 0.15f
-            drawRect(tint.copy(alpha = base))
+            val base = if (level == GlassLevel.Weak) 0.18f else 0.26f
+            drawRect(Color.White.copy(alpha = base))
         }
     )
 }
@@ -80,13 +81,13 @@ fun Modifier.glassStatic(
     tint: Color = GlassTint
 ): Modifier {
     val shape = RoundedCornerShape(radius)
-    val baseAlpha = if (level == GlassLevel.Weak) 0.10f else 0.16f
+    val baseAlpha = if (level == GlassLevel.Weak) 0.42f else 0.55f
     return this
         .clip(shape)
         .background(
             Brush.verticalGradient(
-                listOf(tint.copy(alpha = baseAlpha * 1.5f), tint.copy(alpha = baseAlpha))
+                listOf(Color.White.copy(alpha = baseAlpha * 1.15f), Color.White.copy(alpha = baseAlpha))
             )
         )
-        .border(1.dp, Color.White.copy(alpha = if (level == GlassLevel.Weak) 0.14f else 0.22f), shape)
+        .border(1.dp, Color.White.copy(alpha = if (level == GlassLevel.Weak) 0.55f else 0.7f), shape)
 }

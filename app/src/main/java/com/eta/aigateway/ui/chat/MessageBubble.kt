@@ -38,7 +38,7 @@ fun MessageBubble(msg: ChatMessage) {
 
             if (isUser) {
                 Surface(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.88f),
+                    color = MaterialTheme.colorScheme.primary,
                     shape = shape
                 ) {
                     Text(
