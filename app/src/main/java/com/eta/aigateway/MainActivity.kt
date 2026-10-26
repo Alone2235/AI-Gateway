@@ -59,17 +59,20 @@ fun AppRoot() {
     var screen by remember { mutableStateOf(Screen.CHAT) }
     val st by settingsVm.state.collectAsState()
 
-    LaunchedEffect(st.providers, st.modelCache, st.customModels) {
+    LaunchedEffect(st.providers, st.modelCache, st.customModels, screen) {
         chatVm.refreshModels(st.modelCache, st.providers, st.customModels)
     }
 
     when (screen) {
-        Screen.CHAT -> ChatScreen(
-            vm = chatVm,
-            availableModels = chatVm.allAvailableModels(),
-            onOpenSettings = { screen = Screen.SETTINGS },
-            onOpenDashboard = { screen = Screen.DASHBOARD }
-        )
+        Screen.CHAT -> {
+            val models by chatVm.allModels.collectAsState()
+            ChatScreen(
+                vm = chatVm,
+                availableModels = models,
+                onOpenSettings = { screen = Screen.SETTINGS },
+                onOpenDashboard = { screen = Screen.DASHBOARD }
+            )
+        }
         Screen.SETTINGS -> SettingsScreen(settingsVm) { screen = Screen.CHAT }
         Screen.DASHBOARD -> DashboardScreen(dashVm) { screen = Screen.CHAT }
     }

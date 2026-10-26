@@ -35,7 +35,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     val modelPreferences = repo.modelPreferences
 
     private var streamJob: Job? = null
-    private var allModels: List<ModelEntry> = emptyList()
+    private val _allModels = MutableStateFlow<List<ModelEntry>>(emptyList())
+    val allModels: StateFlow<List<ModelEntry>> = _allModels.asStateFlow()
 
     fun refreshModels(
         cache: Map<String, List<String>>,
@@ -66,14 +67,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         // 自定义优先显示，并去重
-        allModels = (custom + pulled).distinctBy { "${it.providerId}|${it.id}" }
+        _allModels.value = (custom + pulled).distinctBy { "${it.providerId}|${it.id}" }
         _state.value.currentModel?.let { cur ->
-            val updated = allModels.firstOrNull { it.id == cur.id && it.providerId == cur.providerId }
+            val updated = _allModels.value.firstOrNull { it.id == cur.id && it.providerId == cur.providerId }
             if (updated != null) _state.update { it.copy(currentModel = updated) }
         }
     }
 
-    fun allAvailableModels(): List<ModelEntry> = allModels
+    fun allAvailableModels(): List<ModelEntry> = _allModels.value
 
     fun selectModel(m: ModelEntry) {
         _state.update { it.copy(currentModel = m) }
@@ -116,7 +117,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             val history = _state.value.messages.filter { !it.isError }.map { it.role to it.content }
             val providerList = providers.first()
             val prefs = modelPreferences.first()
-            val engine = GatewayEngine(providerList, prefs, allModels)
+            val engine = GatewayEngine(providerList, prefs, _allModels.value)
 
             val sb = StringBuilder()
             var finalModel = model.id
