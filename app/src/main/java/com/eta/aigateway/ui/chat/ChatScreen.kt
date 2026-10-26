@@ -196,7 +196,7 @@ private fun InputBar(
     Row(
         Modifier
             .fillMaxWidth()
-            .glass(Dimens.panelRadius, GlassLevel.Strong)
+            .glass(level = GlassLevel.Strong, radius = Dimens.panelRadius)
             .padding(horizontal = Dimens.pagePadding, vertical = Dimens.gap12),
         verticalAlignment = Alignment.Bottom
     ) {
