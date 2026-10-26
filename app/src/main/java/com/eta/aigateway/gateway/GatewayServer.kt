@@ -78,7 +78,10 @@ class GatewayServer(
     private fun handleModels(st: GatewayState): Response {
         val enabled = st.groups.filter { it.enabled && it.enabledSources.isNotEmpty() }
         val data = mutableListOf<Map<String, Any>>()
-        // auto 虚拟模型：由网关自动选择
+        // 虚拟档位：对客户端暴露为可选模型
+        com.eta.aigateway.data.model.VirtualTier.entries.forEach { t ->
+            data.add(mapOf("id" to t.id, "object" to "model", "owned_by" to "gateway"))
+        }
         data.add(mapOf("id" to "auto", "object" to "model", "owned_by" to "gateway"))
         enabled.forEach { g ->
             data.add(mapOf(

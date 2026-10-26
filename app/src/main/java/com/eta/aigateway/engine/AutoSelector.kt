@@ -18,6 +18,54 @@ object AutoSelector {
      * @param groups 全部模型组
      * @param taskTags 任务推断出的标签（如 heavy / light / long），空则不限
      */
+    /** 按虚拟档位排序 */
+    fun rankTier(
+        groups: List<ModelGroup>,
+        tier: com.eta.aigateway.data.model.VirtualTier
+    ): List<Choice> {
+        val usable = groups.filter { it.enabled && it.enabledSources.isNotEmpty() }
+            .filter { !AutoRouter.isExhausted(it) }
+        if (usable.isEmpty()) return emptyList()
+
+        val heavy = usable.filter { ModelClassifier.isHeavy(it.modelId) }
+        val light = usable.filter { !ModelClassifier.isHeavy(it.modelId) }
+
+        // 每档的候选池；池空则回退到全量，保证总有模型可用
+        val pool: List<ModelGroup> = when (tier) {
+            com.eta.aigateway.data.model.VirtualTier.LITE ->
+                light.ifEmpty { usable }
+            com.eta.aigateway.data.model.VirtualTier.PRO ->
+                usable
+            com.eta.aigateway.data.model.VirtualTier.PRO_MAX ->
+                heavy.ifEmpty { usable }
+            com.eta.aigateway.data.model.VirtualTier.ULTRA ->
+                heavy.ifEmpty { usable }
+        }
+
+        return pool.map { g ->
+            var c = score(g, emptySet())
+            when (tier) {
+                // Lite 强压延迟
+                com.eta.aigateway.data.model.VirtualTier.LITE -> {
+                    val lat = g.enabledSources.map { HealthTracker.avgLatency(it.key) }
+                        .filter { it > 0 }.average().let { if (it.isNaN()) 3000.0 else it }
+                    c = c.copy(score = c.score + (3000.0 - lat.coerceAtMost(3000.0)) / 100.0)
+                }
+                com.eta.aigateway.data.model.VirtualTier.PRO -> {}
+                // Pro Max 强调能力
+                com.eta.aigateway.data.model.VirtualTier.PRO_MAX -> {
+                    c = c.copy(score = c.score + (if (ModelClassifier.isHeavy(g.modelId)) 40 else -20))
+                }
+                // Ultra 只留最健康的
+                com.eta.aigateway.data.model.VirtualTier.ULTRA -> {
+                    val healthy = g.bestHealth == HealthStatus.HEALTHY
+                    c = c.copy(score = c.score + (if (healthy) 60 else -40))
+                }
+            }
+            c
+        }.sortedByDescending { it.score }
+    }
+
     fun rank(groups: List<ModelGroup>, taskTags: Set<String> = emptySet()): List<Choice> {
         return groups
             .filter { it.enabled && it.enabledSources.isNotEmpty() }

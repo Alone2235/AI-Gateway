@@ -81,7 +81,9 @@ fun ChatScreen(
         ModelPickerSheet(
             groups = groups,
             current = state.currentGroup,
+            currentTier = state.currentTier,
             onSelect = { vm.selectGroup(it); showModelPicker = false },
+            onSelectTier = { vm.selectTier(it); showModelPicker = false },
             onDismiss = { showModelPicker = false }
         )
     }
@@ -101,7 +103,7 @@ private fun TopTitle(state: ChatUiState, onPick: () -> Unit) {
     Column(Modifier.clickable(onClick = onPick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                state.currentGroup?.displayName ?: "选择模型",
+                state.currentTier?.label ?: state.currentGroup?.displayName ?: "选择模型",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = Fonts.title2
             )
@@ -112,9 +114,10 @@ private fun TopTitle(state: ChatUiState, onPick: () -> Unit) {
             )
         }
         Text(
-            state.currentGroup?.let { g ->
-                if (g.sources.size > 1) "${g.sources.size} 个来源可切换" else "单个来源"
-            } ?: "未启用任何模型",
+            state.currentTier?.let { t -> t.desc }
+                ?: state.currentGroup?.let { g ->
+                    if (g.sources.size > 1) "${g.sources.size} 个来源可切换" else "单个来源"
+                } ?: "未启用任何模型",
             fontSize = Fonts.micro,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = TextAlpha.secondary)
         )

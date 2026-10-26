@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { CHAT, SETTINGS, DASHBOARD, MODELS }
+private enum class Screen { CHAT, SETTINGS, DASHBOARD, MODELS, ABOUT }
 
 @Composable
 fun AppRoot() {
@@ -95,9 +95,14 @@ fun AppRoot() {
                             onOpenModels = { screen = Screen.SETTINGS }
                         )
                     }
-                    Screen.SETTINGS -> SettingsScreen(settingsVm) { screen = Screen.CHAT }
+                    Screen.SETTINGS -> SettingsScreen(
+                        settingsVm,
+                        onBack = { screen = Screen.CHAT },
+                        onOpenAbout = { screen = Screen.ABOUT }
+                    )
                     Screen.DASHBOARD -> DashboardScreen(dashVm) { screen = Screen.CHAT }
                     Screen.MODELS -> ModelsScreen(modelsVm) { screen = Screen.CHAT }
+                    Screen.ABOUT -> com.eta.aigateway.ui.about.AboutScreen { screen = Screen.SETTINGS }
                 }
             }
         }

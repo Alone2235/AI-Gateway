@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.eta.aigateway.data.db.AppDatabase
 import com.eta.aigateway.data.model.*
+import com.eta.aigateway.data.model.VirtualTier
 import com.eta.aigateway.data.repository.ModelGroupRepository
 import com.eta.aigateway.data.repository.SettingsRepository
 import com.eta.aigateway.engine.ContextCompressor
@@ -21,6 +22,7 @@ data class ChatUiState(
     val streaming: Boolean = false,
     val streamingText: String = "",
     val currentGroup: ModelGroup? = null,
+    val currentTier: VirtualTier? = null,
     val statusHint: String? = null,
     val error: String? = null,
     val sessionId: String = ""
@@ -58,7 +60,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun selectedGroup(): ModelGroup? = _state.value.currentGroup ?: _groups.value.firstOrNull { it.enabled }
 
     fun selectGroup(g: ModelGroup) {
-        _state.update { it.copy(currentGroup = g) }
+        _state.update { it.copy(currentGroup = g, currentTier = null) }
+    }
+
+    fun selectTier(t: VirtualTier) {
+        _state.update { it.copy(currentTier = t) }
     }
 
     fun updateInput(t: String) = _state.update { it.copy(input = t) }
@@ -77,9 +83,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val text = st.input.trim()
         if (text.isEmpty() || st.streaming) return
 
+        val tier = st.currentTier
         val group = selectedGroup()
-        if (group == null) {
-            _state.update { it.copy(error = "没有启用的模型。请到设置 → 模型 里勾选要用的模型") }
+        if (tier == null && group == null) {
+            _state.update { it.copy(error = "没有启用的模型。请到设置里拉取并勾选模型") }
             return
         }
 
@@ -133,10 +140,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             val sb = StringBuilder()
-            var finalModel = group.modelId
+            var finalModel = group?.modelId ?: ""
             var finalProvider = ""
 
-            engine.chat(group, history, source = "app").collect { ev ->
+            val flow = if (tier != null) engine.autoChat(history, source = "app", tier = tier)
+                       else engine.chat(group!!, history, source = "app")
+            flow.collect { ev ->
                 when (ev) {
                     is StreamEvent.Chunk -> {
                         sb.append(ev.text)

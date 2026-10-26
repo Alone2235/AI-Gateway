@@ -17,7 +17,7 @@ import com.eta.aigateway.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
+fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
     val state by vm.state.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     var showAddProvider by remember { mutableStateOf(false) }
@@ -91,6 +91,12 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
             item { SectionHeader("对外网关", "让其它客户端连这台手机") }
             item { GatewaySettingsSection(vm) }
 
+            item {
+                OutlinedButton(
+                    onClick = onOpenAbout,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("关于与声明", fontSize = Fonts.caption) }
+            }
             item { Spacer(Modifier.height(Dimens.gap16)) }
             item { VersionFooter() }
         }

@@ -21,7 +21,9 @@ import com.eta.aigateway.data.model.ModelGroup
 fun ModelPickerSheet(
     groups: List<ModelGroup>,
     current: ModelGroup?,
+    currentTier: com.eta.aigateway.data.model.VirtualTier?,
     onSelect: (ModelGroup) -> Unit,
+    onSelectTier: (com.eta.aigateway.data.model.VirtualTier) -> Unit,
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
@@ -42,6 +44,8 @@ fun ModelPickerSheet(
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(Modifier.height(12.dp))
+            TierPickerSection(groups, currentTier, onSelectTier)
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
                 value = query,

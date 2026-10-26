@@ -53,7 +53,8 @@ internal class ChatHandler(
         if (enabled.isEmpty()) {
             return err(400, "没有启用的模型，请在 App 内勾选模型")
         }
-        val isAuto = modelId == "auto" || modelId.isBlank()
+        val tier = com.eta.aigateway.data.model.VirtualTier.from(modelId)
+        val isAuto = modelId == "auto" || modelId.isBlank() || tier != null
         val model: ModelGroup = when {
             isAuto -> enabled.first()
             else -> enabled.firstOrNull { it.modelId == modelId }
@@ -62,8 +63,8 @@ internal class ChatHandler(
 
         val engine = GatewayEngine(st.providers, st.groups)
 
-        return if (stream) streamResponse(engine, model, msgs, temp, isAuto)
-        else blockingResponse(engine, model, msgs, temp, isAuto)
+        return if (stream) streamResponse(engine, model, msgs, temp, isAuto, tier)
+        else blockingResponse(engine, model, msgs, temp, isAuto, tier)
     }
 
     private fun blockingResponse(
@@ -71,13 +72,14 @@ internal class ChatHandler(
         model: ModelGroup,
         msgs: List<Pair<String, String>>,
         temp: Double,
-        isAuto: Boolean
+        isAuto: Boolean,
+        tier: com.eta.aigateway.data.model.VirtualTier?
     ): NanoHTTPD.Response {
         val sb = StringBuilder()
         var errMsg: String? = null
         var doneModel = model.modelId
         runBlocking {
-            val flow = if (isAuto) engine.autoChat(msgs, temp, "api")
+            val flow = if (isAuto) engine.autoChat(msgs, temp, "api", tier = tier)
             else engine.chat(model, msgs, temp, source = "api")
             flow.collect { ev ->
                 when (ev) {
@@ -119,7 +121,8 @@ internal class ChatHandler(
         model: ModelGroup,
         msgs: List<Pair<String, String>>,
         temp: Double,
-        isAuto: Boolean
+        isAuto: Boolean,
+        tier: com.eta.aigateway.data.model.VirtualTier?
     ): NanoHTTPD.Response {
         val id = "chatcmpl-${System.currentTimeMillis()}"
         val created = System.currentTimeMillis() / 1000
@@ -134,7 +137,7 @@ internal class ChatHandler(
             private fun fill(): Boolean {
                 if (collecting) {
                     runBlocking {
-                        val flow = if (isAuto) engine.autoChat(msgs, temp, "api")
+                        val flow = if (isAuto) engine.autoChat(msgs, temp, "api", tier = tier)
                         else engine.chat(model, msgs, temp, source = "api")
                         flow.collect { ev ->
                             when (ev) {

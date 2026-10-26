@@ -32,11 +32,15 @@ class GatewayEngine(
         history: List<Pair<String, String>>,
         temperature: Double = 0.7,
         source: String = "api",
-        maxTokens: Int = 0
+        maxTokens: Int = 0,
+        tier: com.eta.aigateway.data.model.VirtualTier? = null
     ): Flow<StreamEvent> = flow {
-        val lastUser = history.lastOrNull { it.first == "user" }?.second ?: ""
-        val tags = AutoSelector.inferTaskTags(lastUser)
-        val ranked = AutoSelector.rank(groups, tags)
+        val ranked = if (tier != null) {
+            AutoSelector.rankTier(groups, tier)
+        } else {
+            val lastUser = history.lastOrNull { it.first == "user" }?.second ?: ""
+            AutoSelector.rank(groups, AutoSelector.inferTaskTags(lastUser))
+        }
 
         if (ranked.isEmpty()) {
             emit(StreamEvent.Failed("没有可用模型，请先在 App 内启用模型", 0))
